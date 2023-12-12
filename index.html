@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>歌詞格式化工具</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f3f3f3;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        textarea {
+            width: 70%;
+            height: 200px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        h2 {
+            color: #333;
+        }
+    </style>
+    <script type="text/javascript">
+        function formatLyrics() {
+            var inputLyrics = document.getElementById('inputLyrics').value;
+            var lines = inputLyrics.split('\n');
+            for(var i = 0; i < lines.length; i++) {
+                lines[i] = lines[i].replace(/[，。、；：“”（）《》「」,.:;"'?!()]/g, ' ');
+                lines[i] = lines[i].trim();
+            }
+            var formattedLyrics = lines.join('\n\n');
+            document.getElementById('outputLyrics').value = formattedLyrics;
+        }
+
+        function selectAndCopy() {
+            var outputText = document.getElementById('outputLyrics');
+            outputText.select();
+            document.execCommand('copy');
+            alert("歌詞已複製到剪貼板");
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h2>歌詞格式化工具</h2>
+        <p>點擊格式化自動換行並且刪除標點</p>
+        <textarea id="inputLyrics" placeholder="在此輸入原始歌詞"></textarea>
+        <button onclick="formatLyrics()">格式化</button>
+        <textarea id="outputLyrics" placeholder="格式化後的歌詞將在此顯示"></textarea>
+        <button onclick="selectAndCopy()">複製歌詞</button>
+    </div>
+</body>
+</html>
