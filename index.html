@@ -50,16 +50,58 @@
         }
     </style>
     <script type="text/javascript">
-        function formatLyrics() {
-            var inputLyrics = document.getElementById('inputLyrics').value;
-            var lines = inputLyrics.split('\n');
-            for(var i = 0; i < lines.length; i++) {
-                lines[i] = lines[i].replace(/[，。、；：“”（）《》「」,.:;"'?!()]/g, ' ');
-                lines[i] = lines[i].trim();
+function formatLyrics() {
+    var inputLyrics = document.getElementById('inputLyrics').value;
+    var lines = inputLyrics.split('\n');
+    var formattedLines = [];
+
+    for (var i = 0; i < lines.length; i++) {
+        var cleanedLine = lines[i].replace(/[，。、；：“”（）《》「」,.:;"'?!()]/g, ' ').trim();
+
+        if (cleanedLine !== "") {
+            var firstChar = cleanedLine.charAt(0);
+            var label = "";
+
+            switch (firstChar) {
+                case '1': case '2': case '3': case '4': case '5':
+                    label = "[" + firstChar + "]";
+                    cleanedLine = cleanedLine.substring(1).trim();
+                    break;
+                case 'c': label = "[chorus]"; cleanedLine = cleanedLine.substring(1).trim(); break;
+                case 'p': label = "[prechorus]"; cleanedLine = cleanedLine.substring(1).trim(); break;
+                case 'b': label = "[bridge]"; cleanedLine = cleanedLine.substring(1).trim(); break;
             }
-            var formattedLyrics = lines.join('\n\n');
-            document.getElementById('outputLyrics').value = formattedLyrics;
+
+            var words = cleanedLine.split(' ');
+            var newLine = label !== "" ? label + "\n" : ""; // 在新行开始处添加标签
+            var lineLength = 0;
+
+            for (var j = 0; j < words.length; j++) {
+                var wordLength = words[j].length;
+
+                if (lineLength + wordLength > 12) {
+                    formattedLines.push(newLine.trim());
+                    newLine = words[j];
+                    lineLength = wordLength;
+                } else {
+                    newLine += (lineLength > 0 ? " " : "") + words[j];
+                    lineLength += wordLength; // 空格不计入字符数
+                }
+            }
+
+            if (newLine.trim() !== "") {
+                formattedLines.push(newLine.trim());
+            }
         }
+    }
+
+    var formattedLyrics = formattedLines.join('\n\n');
+    document.getElementById('outputLyrics').value = formattedLyrics;
+}
+
+
+
+
 
         function selectAndCopy() {
             var outputText = document.getElementById('outputLyrics');
@@ -73,6 +115,7 @@
     <div class="container">
         <h2>歌詞格式化工具</h2>
         <p>點擊格式化自動換行並且刪除標點</p>
+        <p>標記1、2、3、4、5、p、c、b 自動標記段落</p></p>
         <textarea id="inputLyrics" placeholder="在此輸入原始歌詞"></textarea>
         <button onclick="formatLyrics()">格式化</button>
         <textarea id="outputLyrics" placeholder="格式化後的歌詞將在此顯示"></textarea>
