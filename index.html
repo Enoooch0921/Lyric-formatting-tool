@@ -57,35 +57,41 @@ function formatLyrics() {
 
     for (var i = 0; i < lines.length; i++) {
         var cleanedLine = lines[i].replace(/[，。、；：“”（）《》「」,.:;"'?!()]/g, ' ').trim();
-
         if (cleanedLine !== "") {
             var firstChar = cleanedLine.charAt(0);
             var label = "";
-
             switch (firstChar) {
                 case '1': case '2': case '3': case '4': case '5':
                     label = "[" + firstChar + "]";
                     cleanedLine = cleanedLine.substring(1).trim();
                     break;
-                case 'c': label = "[chorus]"; cleanedLine = cleanedLine.substring(1).trim(); break;
-                case 'p': label = "[prechorus]"; cleanedLine = cleanedLine.substring(1).trim(); break;
-                case 'b': label = "[bridge]"; cleanedLine = cleanedLine.substring(1).trim(); break;
+                case 'c':
+                    label = "[chorus]";
+                    cleanedLine = cleanedLine.substring(1).trim();
+                    break;
+                case 'p':
+                    label = "[prechorus]";
+                    cleanedLine = cleanedLine.substring(1).trim();
+                    break;
+                case 'b':
+                    label = "[bridge]";
+                    cleanedLine = cleanedLine.substring(1).trim();
+                    break;
             }
 
             var words = cleanedLine.split(' ');
-            var newLine = label !== "" ? label + "\n" : ""; // 在新行开始处添加标签
+            var newLine = label !== "" ? label + "\n" : "";
             var lineLength = 0;
 
             for (var j = 0; j < words.length; j++) {
                 var wordLength = words[j].length;
-
                 if (lineLength + wordLength > 12) {
                     formattedLines.push(newLine.trim());
                     newLine = words[j];
                     lineLength = wordLength;
                 } else {
                     newLine += (lineLength > 0 ? " " : "") + words[j];
-                    lineLength += wordLength; // 空格不计入字符数
+                    lineLength += wordLength;
                 }
             }
 
@@ -95,9 +101,21 @@ function formatLyrics() {
         }
     }
 
-    var formattedLyrics = formattedLines.join('\n\n');
-    document.getElementById('outputLyrics').value = formattedLyrics;
+    var savedFormattedLyrics = formattedLines.join('\n');
+    var linesWithSpaces = savedFormattedLyrics.split('\n');
+    var spacedLyrics = '';
+
+    for (var i = 0; i < linesWithSpaces.length; i++) {
+        if (i > 0 && linesWithSpaces[i] !== '' && !linesWithSpaces[i - 1].startsWith('[')) {
+            spacedLyrics += '\n';
+        }
+        spacedLyrics += linesWithSpaces[i] + '\n';
+    }
+
+document.getElementById('outputLyrics').value = spacedLyrics.trim();
+
 }
+
 
 
 
