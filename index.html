@@ -50,61 +50,132 @@
         }
     </style>
     <script type="text/javascript">
+// 定义处理歌词格式化的函数
 function formatLyrics() {
+    // 获取输入的歌词文本框内容
     var inputLyrics = document.getElementById('inputLyrics').value;
+    // 将歌词文本按行分割成数组
     var lines = inputLyrics.split('\n');
+    // 用于存储格式化后的歌词行的数组
     var formattedLines = [];
 
+    // 用于跟踪是否已经处理了"verse"标识的标志
+    var verseFlag = false;
+
+    // 遍历每一行歌词
     for (var i = 0; i < lines.length; i++) {
+        // 清理每行歌词，移除标点符号并去除首尾空白
         var cleanedLine = lines[i].replace(/[，。、；：“”（）《》「」,.:;"'?!()]/g, ' ').trim();
+        // 如果清理后的行不为空
         if (cleanedLine !== "") {
-            var firstChar = cleanedLine.charAt(0);
-            var label = "";
-            switch (firstChar) {
-                case '1': case '2': case '3': case '4': case '5':
-                    label = "[" + firstChar + "]";
-                    cleanedLine = cleanedLine.substring(1).trim();
-                    break;
-                case 'c':
-                    label = "[chorus]";
-                    cleanedLine = cleanedLine.substring(1).trim();
-                    break;
-                case 'p':
-                    label = "[prechorus]";
-                    cleanedLine = cleanedLine.substring(1).trim();
-                    break;
-                case 'b':
-                    label = "[bridge]";
-                    cleanedLine = cleanedLine.substring(1).trim();
-                    break;
+            var label = ""; // 初始化标签
+            var firstChar = cleanedLine.charAt(0); // 获取行的第一个字符
+
+            // 标识检测
+            var lowercaseLine = cleanedLine.toLowerCase(); // 将行文本转换为小写
+            // 检测是否以 "verse", "chorus" 或 "bridge" 关键词开始
+            if (["verse", "chorus", "bridge"].some(keyword => lowercaseLine.startsWith(keyword))) {
+                // 使用正则表达式匹配标识部分（如 "verse1", "chorus", "bridge"）
+                var match = lowercaseLine.match(/^(verse[0-9]*|chorus|bridge)\s*/i);
+                // 如果匹配的标识以 "verse" 开头
+                if (match[1].startsWith("verse")) {
+                    var verseNumber = match[1].substring(5); // 提取数字部分
+                    // 如果没有数字，将标签设置为 "[1]"
+                    if (verseNumber === "") {
+                        label = "[1]";
+                    } else {
+                        // 使用提取的数字设置标签
+                        label = "[" + verseNumber + "]";
+                    }
+                } else {
+                    // 否则，直接使用匹配到的标识作为标签
+                    label = "[" + match[1] + "]";
+                }
+                cleanedLine = cleanedLine.substring(match[0].length).trim(); // 移除标识部分
+            } else if (/\[verse[0-9]*\]/i.test(cleanedLine)) { // 处理 "[Verse]", "[Verse1]", "[Verse2]" 等情况
+                var verseMatch = cleanedLine.match(/\[verse([0-9]*)\]/i);
+                // 如果没有数字，将标签设置为 "[1]"
+                if (verseMatch[1] === "") {
+                    label = "[1]";
+                } else {
+                    // 使用提取的数字设置标签
+                    label = "[" + verseMatch[1] + "]";
+                }
+                cleanedLine = cleanedLine.replace(/\[verse[0-9]*\]/i, "").trim(); // 移除标签
+            } else if (/\[pre(-)?chorus\]/i.test(cleanedLine)) { // 处理 "[Pre-Chorus]" 或 "[Prechorus]"
+                label = "[prechorus]"; // 将 "[Pre-Chorus]" 或 "[Prechorus]" 标签设置为小写的 "[prechorus]"
+                cleanedLine = cleanedLine.replace(/\[pre(-)?chorus\]/i, "").trim(); // 移除标签
+            } else if (/pre(-)?chorus/i.test(lowercaseLine)) { // 处理 "Pre-Chorus" 或 "Prechorus"（不带方括号）
+                label = "[prechorus]"; // 将 "Pre-Chorus" 或 "Prechorus" 设置为小写的 "[prechorus]"
+                cleanedLine = cleanedLine.replace(/pre(-)?chorus/i, "").trim(); // 移除标识
+            } else if (/\[chorus\]/i.test(cleanedLine)) { // 处理 "[Chorus]"
+                label = "[chorus]"; // 将 "[Chorus]" 标签设置为小写
+                cleanedLine = cleanedLine.replace(/\[chorus\]/i, "").trim(); // 移除标签
+            } else if (/\[bridge\]/i.test(cleanedLine)) { // 处理 "[Bridge]"
+                label = "[bridge]"; // 将 "[Bridge]" 标签设置为小写
+                cleanedLine = cleanedLine.replace(/\[bridge\]/i, "").trim(); // 移除标签
+            } else {
+                // 如果不匹配以上任何标识，根据首字母设置默认标签
+                switch (firstChar) {
+                    case '1': case '2': case '3': case '4': case '5':
+                        label = "[" + firstChar + "]";
+                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
+                        break;
+                    case 'c':
+                        label = "[chorus]";
+                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
+                        break;
+                    case 'p':
+                        label = "[prechorus]";
+                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
+                        break;
+                    case 'b':
+                        label = "[bridge]";
+                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
+                        break;
+                    default:
+                        break;
+                }
             }
 
+            // 拆分行成单词
             var words = cleanedLine.split(' ');
-            var newLine = label !== "" ? label + "\n" : "";
+            var newLine = label !== "" ? label + "\n" : ""; // 初始化新的一行，包括标签
             var lineLength = 0;
 
+            // 遍历每个单词
             for (var j = 0; j < words.length; j++) {
                 var wordLength = words[j].length;
-                if (lineLength + wordLength > 12) {
-                    formattedLines.push(newLine.trim());
-                    newLine = words[j];
+                // 检查当前行是否包含空格
+                var containsSpace = cleanedLine.includes(' ');
+
+                // 如果加上当前单词长度超过 12 个字符，并且行中包含空格，则换行
+                if (lineLength + wordLength > 12 && containsSpace) {
+                    formattedLines.push(newLine.trim()); // 将当前行添加到结果数组
+                    newLine = words[j]; // 开始新的一行
                     lineLength = wordLength;
                 } else {
+                    // 否则，将当前单词添加到当前行
                     newLine += (lineLength > 0 ? " " : "") + words[j];
                     lineLength += wordLength;
                 }
             }
 
+
+            // 如果新行不为空，则将其添加到结果数组
             if (newLine.trim() !== "") {
                 formattedLines.push(newLine.trim());
             }
         }
     }
 
+    // 将格式化后的歌词行连接为一个字符串
     var savedFormattedLyrics = formattedLines.join('\n');
+    // 将格式化后的歌词行再次按行分割
     var linesWithSpaces = savedFormattedLyrics.split('\n');
     var spacedLyrics = '';
 
+    // 添加额外的空行以提高可读性
     for (var i = 0; i < linesWithSpaces.length; i++) {
         if (i > 0 && linesWithSpaces[i] !== '' && !linesWithSpaces[i - 1].startsWith('[')) {
             spacedLyrics += '\n';
@@ -112,10 +183,9 @@ function formatLyrics() {
         spacedLyrics += linesWithSpaces[i] + '\n';
     }
 
-document.getElementById('outputLyrics').value = spacedLyrics.trim();
-
+    // 将最终格式化后的歌词文本设置回输出文本框
+    document.getElementById('outputLyrics').value = spacedLyrics.trim();
 }
-
 
 
 
