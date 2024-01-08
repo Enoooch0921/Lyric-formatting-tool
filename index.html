@@ -50,12 +50,20 @@
         }
     </style>
     <script type="text/javascript">
+function fullWidthToHalfWidth(str) {
+    return str.replace(/[\u3000]/g, ' ');
+}
+
+
 // 定义处理歌词格式化的函数
 function formatLyrics() {
-    // 获取输入的歌词文本框内容
     var inputLyrics = document.getElementById('inputLyrics').value;
+
+    // 将全角空格转换为半角空格
+    var lyricsWithHalfWidthSpaces = fullWidthToHalfWidth(inputLyrics);
+
     // 将歌词文本按行分割成数组
-    var lines = inputLyrics.split('\n');
+    var lines = lyricsWithHalfWidthSpaces.split('\n');
     // 用于存储格式化后的歌词行的数组
     var formattedLines = [];
 
