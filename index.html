@@ -196,14 +196,19 @@ function formatLyrics() {
 }
 
 
-
-
-
         function selectAndCopy() {
             var outputText = document.getElementById('outputLyrics');
             outputText.select();
             document.execCommand('copy');
             alert("歌詞已複製到剪貼板");
+        }
+
+        // 新增的替换函数
+        function replaceText(fromChar, toChar) {
+            var outputLyrics = document.getElementById('outputLyrics');
+            var lyrics = outputLyrics.value;
+            lyrics = lyrics.replace(new RegExp(fromChar, 'g'), toChar);
+            outputLyrics.value = lyrics;
         }
     </script>
 </head>
@@ -211,11 +216,20 @@ function formatLyrics() {
     <div class="container">
         <h2>歌詞格式化工具</h2>
         <p>點擊格式化自動換行並且刪除標點</p>
-        <p>標記1、2、3、4、5、p、c、b 自動標記段落</p></p>
+        <p>標記1、2、3、4、5、p、c、b 自動標記段落</p>
         <textarea id="inputLyrics" placeholder="在此輸入原始歌詞"></textarea>
         <button onclick="formatLyrics()">格式化</button>
         <textarea id="outputLyrics" placeholder="格式化後的歌詞將在此顯示"></textarea>
-        <button onclick="selectAndCopy()">複製歌詞</button>
+        <!-- 新增按钮容器，使按钮水平排列 -->
+        <div class="buttons-container">
+            <button onclick="replaceText('你', '祢')">你/祢</button>
+            <button onclick="replaceText('他', '祂')">他/祂</button>
+            <button onclick="selectAndCopy()">複製歌詞</button>
+        </div>
     </div>
+
+
+
+
 </body>
 </html>
