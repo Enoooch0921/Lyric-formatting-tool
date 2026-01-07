@@ -1,235 +1,531 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-    <title>歌詞格式化工具</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教會歌詞排版助手 Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary: #4F46E5; /* Indigo 600 */
+            --primary-hover: #4338ca;
+            --secondary: #64748b; /* Slate 500 */
+            --success: #10b981; /* Emerald 500 */
+            --danger: #ef4444; /* Red 500 */
+            --bg-color: #f1f5f9; /* Slate 100 */
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f3f3f3;
-            text-align: center;
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
             padding: 20px;
+            line-height: 1.5;
         }
 
         .container {
+            max-width: 1200px;
+            margin: 0 auto;
             display: flex;
             flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            color: var(--primary);
+            margin: 0;
+            font-weight: 700;
+            font-size: 2rem;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            color: var(--secondary);
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Controls Area */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        @media (min-width: 768px) {
+            .controls-grid {
+                grid-template-columns: auto 1fr auto; /* 左設定 中工具 右危險區 */
+                align-items: center;
+            }
+        }
+
+        .control-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
             align-items: center;
         }
 
-        textarea {
-            width: 70%;
-            height: 200px;
-            margin: 10px 0;
+        .group-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-right: 8px;
+        }
+
+        /* Inputs */
+        .input-wrapper {
+            display: flex;
+            align-items: center;
+            background: var(--bg-color);
+            padding: 4px 12px;
             border-radius: 8px;
-            border: 1px solid #ccc;
-            padding: 10px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            border: 1px solid var(--border-color);
         }
 
-        button {
-            background-color: #4CAF50;
-            color: white;
+        input[type="number"] {
             border: none;
-            padding: 10px 20px;
+            background: transparent;
+            width: 50px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--primary);
             text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            margin: 10px 2px;
+            outline: none;
+        }
+
+        /* Buttons */
+        button {
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
             cursor: pointer;
-            border-radius: 4px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         }
 
-        button:hover {
-            background-color: #45a049;
+        button:active {
+            transform: translateY(1px);
         }
 
-        h2 {
-            color: #333;
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
         }
+        .btn-primary:hover { background-color: var(--primary-hover); box-shadow: 0 6px 8px -1px rgba(79, 70, 229, 0.4); transform: translateY(-1px); }
+
+        .btn-outline {
+            background-color: white;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+        .btn-outline:hover { background-color: var(--bg-color); border-color: #cbd5e1; }
+
+        .btn-soft {
+            background-color: #e0e7ff; /* Indigo 100 */
+            color: var(--primary);
+        }
+        .btn-soft:hover { background-color: #c7d2fe; }
+
+        .btn-danger-ghost {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid transparent;
+        }
+        .btn-danger-ghost:hover { background: #fef2f2; border-color: #fecaca; }
+
+        /* Translation Tools Bar */
+        .tools-bar {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border-color);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Editor Area */
+        .editor-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+            height: 60vh;
+        }
+
+        @media (min-width: 768px) {
+            .editor-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .editor-box {
+            display: flex;
+            flex-direction: column;
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden; /* For header rounded corners */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .editor-header {
+            background: #f8fafc;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-title {
+            font-weight: 700;
+            color: var(--secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 20px;
+            border: none;
+            resize: none;
+            font-size: 16px;
+            line-height: 1.7;
+            font-family: inherit;
+            color: var(--text-main);
+        }
+
+        textarea:focus {
+            outline: none;
+            background-color: #fafafa;
+        }
+
+        textarea::placeholder {
+            color: #94a3b8;
+        }
+
+        /* Output specific styles */
+        #outputLyrics {
+            background-color: #f8fafc;
+        }
+
+        .btn-copy {
+            background-color: var(--success);
+            color: white;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+        }
+        .btn-copy:hover { background-color: #059669; }
+
     </style>
-    <script type="text/javascript">
-function fullWidthToHalfWidth(str) {
-    return str.replace(/[\u3000]/g, ' ');
-}
-
-
-// 定义处理歌词格式化的函数
-function formatLyrics() {
-    var inputLyrics = document.getElementById('inputLyrics').value;
-
-    // 将全角空格转换为半角空格
-    var lyricsWithHalfWidthSpaces = fullWidthToHalfWidth(inputLyrics);
-
-    // 将歌词文本按行分割成数组
-    var lines = lyricsWithHalfWidthSpaces.split('\n');
-    // 用于存储格式化后的歌词行的数组
-    var formattedLines = [];
-
-    // 用于跟踪是否已经处理了"verse"标识的标志
-    var verseFlag = false;
-
-    // 遍历每一行歌词
-    for (var i = 0; i < lines.length; i++) {
-        // 清理每行歌词，移除标点符号并去除首尾空白
-        var cleanedLine = lines[i].replace(/[，。、；：“”（）《》「」,.:;"'?!()]/g, ' ').trim();
-        // 如果清理后的行不为空
-        if (cleanedLine !== "") {
-            var label = ""; // 初始化标签
-            var firstChar = cleanedLine.charAt(0); // 获取行的第一个字符
-
-            // 标识检测
-            var lowercaseLine = cleanedLine.toLowerCase(); // 将行文本转换为小写
-            // 检测是否以 "verse", "chorus" 或 "bridge" 关键词开始
-            if (["verse", "chorus", "bridge"].some(keyword => lowercaseLine.startsWith(keyword))) {
-                // 使用正则表达式匹配标识部分（如 "verse1", "chorus", "bridge"）
-                var match = lowercaseLine.match(/^(verse[0-9]*|chorus|bridge)\s*/i);
-                // 如果匹配的标识以 "verse" 开头
-                if (match[1].startsWith("verse")) {
-                    var verseNumber = match[1].substring(5); // 提取数字部分
-                    // 如果没有数字，将标签设置为 "[1]"
-                    if (verseNumber === "") {
-                        label = "[1]";
-                    } else {
-                        // 使用提取的数字设置标签
-                        label = "[" + verseNumber + "]";
-                    }
-                } else {
-                    // 否则，直接使用匹配到的标识作为标签
-                    label = "[" + match[1] + "]";
-                }
-                cleanedLine = cleanedLine.substring(match[0].length).trim(); // 移除标识部分
-            } else if (/\[verse[0-9]*\]/i.test(cleanedLine)) { // 处理 "[Verse]", "[Verse1]", "[Verse2]" 等情况
-                var verseMatch = cleanedLine.match(/\[verse([0-9]*)\]/i);
-                // 如果没有数字，将标签设置为 "[1]"
-                if (verseMatch[1] === "") {
-                    label = "[1]";
-                } else {
-                    // 使用提取的数字设置标签
-                    label = "[" + verseMatch[1] + "]";
-                }
-                cleanedLine = cleanedLine.replace(/\[verse[0-9]*\]/i, "").trim(); // 移除标签
-            } else if (/\[pre(-)?chorus\]/i.test(cleanedLine)) { // 处理 "[Pre-Chorus]" 或 "[Prechorus]"
-                label = "[prechorus]"; // 将 "[Pre-Chorus]" 或 "[Prechorus]" 标签设置为小写的 "[prechorus]"
-                cleanedLine = cleanedLine.replace(/\[pre(-)?chorus\]/i, "").trim(); // 移除标签
-            } else if (/pre(-)?chorus/i.test(lowercaseLine)) { // 处理 "Pre-Chorus" 或 "Prechorus"（不带方括号）
-                label = "[prechorus]"; // 将 "Pre-Chorus" 或 "Prechorus" 设置为小写的 "[prechorus]"
-                cleanedLine = cleanedLine.replace(/pre(-)?chorus/i, "").trim(); // 移除标识
-            } else if (/\[chorus\]/i.test(cleanedLine)) { // 处理 "[Chorus]"
-                label = "[chorus]"; // 将 "[Chorus]" 标签设置为小写
-                cleanedLine = cleanedLine.replace(/\[chorus\]/i, "").trim(); // 移除标签
-            } else if (/\[bridge\]/i.test(cleanedLine)) { // 处理 "[Bridge]"
-                label = "[bridge]"; // 将 "[Bridge]" 标签设置为小写
-                cleanedLine = cleanedLine.replace(/\[bridge\]/i, "").trim(); // 移除标签
-            } else {
-                // 如果不匹配以上任何标识，根据首字母设置默认标签
-                switch (firstChar) {
-                    case '1': case '2': case '3': case '4': case '5':
-                        label = "[" + firstChar + "]";
-                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
-                        break;
-                    case 'c':
-                        label = "[chorus]";
-                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
-                        break;
-                    case 'p':
-                        label = "[prechorus]";
-                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
-                        break;
-                    case 'b':
-                        label = "[bridge]";
-                        cleanedLine = cleanedLine.substring(1).trim(); // 移除首字母
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            // 拆分行成单词
-            var words = cleanedLine.split(' ');
-            var newLine = label !== "" ? label + "\n" : ""; // 初始化新的一行，包括标签
-            var lineLength = 0;
-
-            // 遍历每个单词
-            for (var j = 0; j < words.length; j++) {
-                var wordLength = words[j].length;
-                // 检查当前行是否包含空格
-                var containsSpace = cleanedLine.includes(' ');
-
-                // 如果加上当前单词长度超过 12 个字符，并且行中包含空格，则换行
-                if (lineLength + wordLength > 12 && containsSpace) {
-                    formattedLines.push(newLine.trim()); // 将当前行添加到结果数组
-                    newLine = words[j]; // 开始新的一行
-                    lineLength = wordLength;
-                } else {
-                    // 否则，将当前单词添加到当前行
-                    newLine += (lineLength > 0 ? " " : "") + words[j];
-                    lineLength += wordLength;
-                }
-            }
-
-
-            // 如果新行不为空，则将其添加到结果数组
-            if (newLine.trim() !== "") {
-                formattedLines.push(newLine.trim());
-            }
-        }
-    }
-
-    // 将格式化后的歌词行连接为一个字符串
-    var savedFormattedLyrics = formattedLines.join('\n');
-    // 将格式化后的歌词行再次按行分割
-    var linesWithSpaces = savedFormattedLyrics.split('\n');
-    var spacedLyrics = '';
-
-    // 添加额外的空行以提高可读性
-    for (var i = 0; i < linesWithSpaces.length; i++) {
-        if (i > 0 && linesWithSpaces[i] !== '' && !linesWithSpaces[i - 1].startsWith('[')) {
-            spacedLyrics += '\n';
-        }
-        spacedLyrics += linesWithSpaces[i] + '\n';
-    }
-
-    // 将最终格式化后的歌词文本设置回输出文本框
-    document.getElementById('outputLyrics').value = spacedLyrics.trim();
-}
-
-
-        function selectAndCopy() {
-            var outputText = document.getElementById('outputLyrics');
-            outputText.select();
-            document.execCommand('copy');
-            alert("歌詞已複製到剪貼板");
-        }
-
-        // 新增的替换函数
-        function replaceText(fromChar, toChar) {
-            var outputLyrics = document.getElementById('outputLyrics');
-            var lyrics = outputLyrics.value;
-            lyrics = lyrics.replace(new RegExp(fromChar, 'g'), toChar);
-            outputLyrics.value = lyrics;
-        }
-    </script>
 </head>
 <body>
+
     <div class="container">
-        <h2>歌詞格式化工具</h2>
-        <p>點擊格式化自動換行並且刪除標點</p>
-        <p>標記1、2、3、4、5、p、c、b 自動標記段落</p>
-        <textarea id="inputLyrics" placeholder="在此輸入原始歌詞"></textarea>
-        <button onclick="formatLyrics()">格式化</button>
-        <textarea id="outputLyrics" placeholder="格式化後的歌詞將在此顯示"></textarea>
-        <!-- 新增按钮容器，使按钮水平排列 -->
-        <div class="buttons-container">
-            <button onclick="replaceText('你', '祢')">你/祢</button>
-            <button onclick="replaceText('他', '祂')">他/祂</button>
-            <button onclick="selectAndCopy()">複製歌詞</button>
+        <header>
+            <h1>教會歌詞排版助手 Pro</h1>
+            <div class="subtitle">智慧防孤兒字・自動標段・翻譯管理・不切斷詞彙</div>
+        </header>
+
+        <div class="card">
+            <div class="controls-grid">
+                <div class="control-group">
+                    <div class="input-wrapper" title="每行字數參考（中文=2，英文=1）">
+                        <span style="font-size: 0.9rem; color: var(--secondary); margin-right:5px;">行寬限制</span>
+                        <input type="number" id="charLimit" value="13" min="5" max="40">
+                    </div>
+                </div>
+
+                <div class="control-group" style="justify-content: center;">
+                    <button class="btn-primary" onclick="formatLyrics()">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                        一鍵格式化
+                    </button>
+                    <button class="btn-outline" onclick="replaceText('你', '祢')">你 → 祢</button>
+                    <button class="btn-outline" onclick="replaceText('他', '祂')">他 → 祂</button>
+                </div>
+
+                <div class="control-group" style="justify-content: flex-end;">
+                    <button class="btn-danger-ghost" onclick="clearAll()">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        清空
+                    </button>
+                </div>
+            </div>
+
+            <div class="tools-bar">
+                <span class="group-label">翻譯管理工具</span>
+                <button class="btn-soft" onclick="keepChineseOnly()" title="保留中文">
+                    🇨🇳 只留中文
+                </button>
+                <button class="btn-soft" onclick="keepEnglishOnly()" title="保留英文">
+                    🇺🇸 只留英文
+                </button>
+                <button class="btn-soft" onclick="keepOddLines()" title="去除雙語歌詞中的翻譯行">
+                    🔢 移除雙數行
+                </button>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <div class="editor-box">
+                <div class="editor-header">
+                    <span class="editor-title">原始歌詞</span>
+                </div>
+                <textarea id="inputLyrics" placeholder="請在此貼上歌詞...&#10;&#10;💡 功能提示：&#10;1. 防孤兒字：末尾單字若超出一點點，會自動擠在同一行&#10;2. 自動標段：輸入 V1, C, B, Pre 自動識別&#10;3. 智慧糾錯：修正 Pro Chorus, Brisge 等拼寫錯誤"></textarea>
+            </div>
+
+            <div class="editor-box">
+                <div class="editor-header">
+                    <span class="editor-title">排版結果</span>
+                    <button id="copyBtn" class="btn-copy" onclick="copyToClipboard()">
+                        📋 複製結果
+                    </button>
+                </div>
+                <textarea id="outputLyrics" readonly placeholder="格式化後的結果將顯示於此..."></textarea>
+            </div>
         </div>
     </div>
 
+    <script>
+        function fullWidthToHalfWidth(str) {
+            return str.replace(/[\uff01-\uff5e]/g, function(ch) {
+                return String.fromCharCode(ch.charCodeAt(0) - 0xfee0);
+            }).replace(/\u3000/g, ' ');
+        }
 
+        function getVisualLength(str) {
+            let len = 0;
+            for (let i = 0; i < str.length; i++) {
+                if (str.charCodeAt(i) <= 127) len += 1;
+                else len += 2;
+            }
+            return len;
+        }
 
+        function formatLyrics() {
+            const inputElement = document.getElementById('inputLyrics');
+            const visualLimit = (parseInt(document.getElementById('charLimit').value) || 12) * 2;
+            let inputLyrics = inputElement.value;
 
+            let processed = fullWidthToHalfWidth(inputLyrics);
+            // 移除標點，保留空格作為唯一的分割依據
+            processed = processed.replace(/[，。、；：“”（）《》「」,.:;"'?!()~]/g, ' ');
+
+            const lines = processed.split('\n');
+            let formattedLines = [];
+
+            lines.forEach(line => {
+                let cleanedLine = line.replace(/\s+/g, ' ').trim();
+                if (cleanedLine === "") return;
+
+                let label = "";
+                let content = cleanedLine;
+                const lowerLine = cleanedLine.toLowerCase();
+
+                // 標籤與糾錯邏輯
+                const verseMatch = lowerLine.match(/^\[?(v|verse)\s*([0-9]+)\]?/i);
+                // 新增 pro chorus 支援
+                const tagMatch = lowerLine.match(/^\[?(chorus|chrous|chrouse|chros|c|bridge|br|brisge|brigde|b|pre(-)?chorus|pre(-)?chrous|pre|pre(-)?c|pro(-)?chorus|pro(-)?c)\]?(\s|:|\.|$)/i);
+
+                if (verseMatch) {
+                    label = `[${verseMatch[2]}]`;
+                    content = cleanedLine.substring(verseMatch[0].length).trim();
+                } 
+                else if (tagMatch) {
+                    let tag = tagMatch[1].replace(/-/g, '');
+                    if (tag.startsWith('c')) label = `[chorus]`;
+                    else if (tag.startsWith('b')) label = `[bridge]`;
+                    else if (tag.startsWith('p')) label = `[prechorus]`; // Covers Pre & Pro
+                    content = cleanedLine.substring(tagMatch[0].length).trim();
+                } 
+                else {
+                    const firstChar = lowerLine.charAt(0);
+                    const isDigit = ['1','2','3','4','5'].includes(firstChar);
+                    
+                    if (isDigit) {
+                        label = `[${firstChar}]`;
+                        content = content.substring(1).trim();
+                    } 
+                    else if (['c', 'b', 'p'].includes(firstChar)) {
+                        const nextChar = lowerLine.charAt(1);
+                        const isNextEnglish = nextChar >= 'a' && nextChar <= 'z';
+                        if (!isNextEnglish) {
+                            if (firstChar === 'c') label = `[chorus]`;
+                            else if (firstChar === 'b') label = `[bridge]`;
+                            else if (firstChar === 'p') label = `[prechorus]`;
+                            content = content.substring(1).trim();
+                        }
+                    }
+                }
+
+                if (label !== "" && content === "") {
+                    formattedLines.push(label);
+                    return;
+                }
+                if (label !== "") formattedLines.push(label);
+                
+                // 斷行處理 (含孤兒字防護)
+                if (content !== "") {
+                    const segments = content.split(' ');
+                    
+                    if (segments.length > 0) {
+                        let currentLine = "";
+                        let currentLen = 0;
+
+                        segments.forEach((segment, index) => {
+                            if (segment === "") return; 
+
+                            const segmentLen = getVisualLength(segment);
+                            const spaceWidth = (currentLine !== "") ? 1 : 0;
+
+                            // 孤兒字防護邏輯：
+                            // 如果是這一行的最後一個字，給予額外的容忍度 (5個單位，約2.5個中文字或5個英文字母)
+                            const isLastWord = (index === segments.length - 1);
+                            const tolerance = isLastWord ? 5 : 0;
+
+                            if (currentLen + spaceWidth + segmentLen > visualLimit + tolerance && currentLine !== "") {
+                                formattedLines.push(currentLine);
+                                currentLine = segment;
+                                currentLen = segmentLen;
+                            } else {
+                                currentLine += (currentLine === "" ? "" : " ") + segment;
+                                currentLen += spaceWidth + segmentLen;
+                            }
+                        });
+                        
+                        if (currentLine) formattedLines.push(currentLine);
+                    }
+                }
+            });
+
+            // 輸出
+            let finalOutput = "";
+            for (let i = 0; i < formattedLines.length; i++) {
+                const line = formattedLines[i];
+                if (line.startsWith('[')) {
+                    finalOutput += line + "\n";
+                } else {
+                    finalOutput += line + "\n\n";
+                }
+            }
+
+            document.getElementById('outputLyrics').value = finalOutput.trim();
+        }
+
+        // 翻譯與其他工具
+        function keepChineseOnly() {
+            const inputEl = document.getElementById('inputLyrics');
+            const lines = inputEl.value.split('\n');
+            const filtered = lines.filter(line => {
+                if(line.trim() === "") return true;
+                if(line.trim().match(/^\[|^verse|^chorus|^bridge|^c$|^b$|^1$/i)) return true;
+                return /[\u4e00-\u9fa5]/.test(line);
+            });
+            inputEl.value = filtered.join('\n');
+            formatLyrics();
+        }
+
+        function keepEnglishOnly() {
+            const inputEl = document.getElementById('inputLyrics');
+            const lines = inputEl.value.split('\n');
+            const filtered = lines.filter(line => {
+                if(line.trim() === "") return true;
+                if(line.trim().match(/^\[|^verse|^chorus|^bridge|^c$|^b$|^1$/i)) return true;
+                return !/[\u4e00-\u9fa5]/.test(line);
+            });
+            inputEl.value = filtered.join('\n');
+            formatLyrics();
+        }
+
+        function keepOddLines() {
+            if(!confirm("這會刪除每兩行中的第二行，確定嗎？")) return;
+            const inputEl = document.getElementById('inputLyrics');
+            const lines = inputEl.value.split('\n').filter(l => l.trim() !== "");
+            let resultLines = [];
+            let contentCounter = 0;
+            
+            lines.forEach(line => {
+                const isTag = line.match(/^\[|^verse|^chorus|^bridge|^pre|^c$|^b$|^p$|^[1-5]$/i);
+                if (isTag) {
+                    resultLines.push(line);
+                } else {
+                    contentCounter++;
+                    if (contentCounter % 2 === 1) {
+                        resultLines.push(line);
+                    }
+                }
+            });
+            inputEl.value = resultLines.join('\n');
+            formatLyrics();
+        }
+
+        function replaceText(from, to) {
+            const outputEl = document.getElementById('outputLyrics');
+            if(!outputEl.value) formatLyrics();
+            outputEl.value = outputEl.value.split(from).join(to);
+        }
+
+        function clearAll() {
+            if(confirm('確定要清空所有內容嗎？')) {
+                document.getElementById('inputLyrics').value = '';
+                document.getElementById('outputLyrics').value = '';
+            }
+        }
+
+        async function copyToClipboard() {
+            const outputText = document.getElementById('outputLyrics');
+            const btn = document.getElementById('copyBtn');
+            const originalText = btn.innerHTML;
+            
+            if (!outputText.value.trim()) {
+                alert("沒有內容可以複製喔！請先輸入歌詞並格式化。");
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(outputText.value);
+                btn.innerHTML = "✅ 已複製！";
+                btn.style.backgroundColor = "#059669"; // Emerald 600
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.style.backgroundColor = "";
+                }, 2000);
+            } catch (err) { alert('複製失敗，請手動複製。'); }
+        }
+    </script>
 </body>
 </html>
