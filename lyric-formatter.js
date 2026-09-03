@@ -83,7 +83,8 @@
             const segmentLen = getVisualLength(segment);
             const spaceWidth = currentLine ? 1 : 0;
             const isLastWord = index === segments.length - 1;
-            const tolerance = isLastWord ? 5 : 0;
+            // A small overflow is easier to read than leaving one English word alone.
+            const tolerance = isLastWord ? Math.min(8, Math.max(5, Math.ceil(visualLimit * 0.3))) : 0;
 
             if (currentLine && currentLen + spaceWidth + segmentLen > visualLimit + tolerance) {
                 wrapped.push(currentLine);

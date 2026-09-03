@@ -15,6 +15,13 @@ test('removes apostrophes without splitting English contractions', () => {
     assert.equal(cleanLyricContent('I\u2019m Yours'), 'Im Yours');
 });
 
+test('keeps a short English lyric together instead of orphaning its last word', () => {
+    assert.equal(
+        formatLyricsText('I\u2019m standing on Your faithfulness', 13),
+        'Im standing on Your faithfulness'
+    );
+});
+
 test('removes punctuation that was previously missed', () => {
     assert.equal(
         cleanLyricContent('祢真偉大……永遠掌權—直到萬代！'),
