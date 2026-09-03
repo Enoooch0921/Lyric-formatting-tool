@@ -182,6 +182,110 @@
             flex-wrap: wrap;
         }
 
+        /* PPTX Import */
+        .ppt-import-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .ppt-import-title {
+            margin: 0;
+            font-size: 1.05rem;
+        }
+
+        .ppt-import-helper {
+            margin: 4px 0 0;
+            color: var(--secondary);
+            font-size: 0.9rem;
+        }
+
+        .privacy-note {
+            color: var(--success);
+            font-size: 0.82rem;
+            white-space: nowrap;
+        }
+
+        .ppt-drop-zone {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 82px;
+            padding: 16px;
+            border: 2px dashed #a5b4fc;
+            border-radius: 10px;
+            background: #eef2ff;
+            color: var(--primary);
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+        }
+
+        .ppt-drop-zone:hover,
+        .ppt-drop-zone.is-dragging {
+            border-color: var(--primary);
+            background: #e0e7ff;
+        }
+
+        .ppt-drop-zone.is-loading {
+            cursor: wait;
+            opacity: 0.65;
+        }
+
+        #pptInput {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+        }
+
+        .ppt-status {
+            min-height: 1.5em;
+            margin-top: 10px;
+            color: var(--secondary);
+            font-size: 0.9rem;
+        }
+
+        .ppt-status.is-error {
+            color: var(--danger);
+        }
+
+        .song-choices {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .song-choice {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        .song-choice-title {
+            font-weight: 700;
+        }
+
+        .song-choice-meta {
+            color: var(--secondary);
+            font-size: 0.82rem;
+        }
+
+        .song-choice button {
+            margin-top: auto;
+        }
+
         /* Editor Area */
         .editor-container {
             display: grid;
@@ -266,6 +370,22 @@
             <div class="subtitle">智慧防孤兒字・自動標段・翻譯管理・不切斷詞彙</div>
         </header>
 
+        <section class="card" aria-labelledby="pptImportTitle">
+            <div class="ppt-import-header">
+                <div>
+                    <h2 id="pptImportTitle" class="ppt-import-title">從 PPT 匯入歌詞</h2>
+                    <p class="ppt-import-helper">拖入 PPTX，自動辨識歌曲、合併重複投影片，再選擇要匯入哪一首。</p>
+                </div>
+                <span class="privacy-note">🔒 僅在瀏覽器內解析</span>
+            </div>
+            <label id="pptDropZone" class="ppt-drop-zone" for="pptInput">
+                <span id="pptDropText">將 PPTX 拖到這裡，或點擊選擇檔案（最多 50 MB）</span>
+                <input id="pptInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+            </label>
+            <div id="pptStatus" class="ppt-status" role="status" aria-live="polite"></div>
+            <div id="songChoices" class="song-choices" hidden></div>
+        </section>
+
         <div class="card">
             <div class="controls-grid">
                 <div class="control-group">
@@ -329,9 +449,121 @@
         </div>
     </div>
 
+    <script src="vendor/fflate-0.8.2.min.js"></script>
+    <script src="pptx-importer.js"></script>
     <script src="lyric-formatter.js"></script>
     <script>
         const inputHistory = [];
+        let detectedSongs = [];
+        let isPptParsing = false;
+
+        const pptInput = document.getElementById('pptInput');
+        const pptDropZone = document.getElementById('pptDropZone');
+        const pptDropText = document.getElementById('pptDropText');
+        const pptStatus = document.getElementById('pptStatus');
+        const songChoices = document.getElementById('songChoices');
+
+        function songOrdinal(index) {
+            return ['第一首', '第二首', '第三首', '第四首', '第五首', '第六首'][index] || `第 ${index + 1} 首`;
+        }
+
+        function setPptStatus(message, isError = false) {
+            pptStatus.textContent = message;
+            pptStatus.classList.toggle('is-error', isError);
+        }
+
+        function renderSongChoices() {
+            songChoices.replaceChildren();
+            detectedSongs.forEach((song, index) => {
+                const card = document.createElement('div');
+                card.className = 'song-choice';
+
+                const title = document.createElement('div');
+                title.className = 'song-choice-title';
+                title.textContent = `${songOrdinal(index)}｜${song.title || song.preview}`;
+
+                const meta = document.createElement('div');
+                meta.className = 'song-choice-meta';
+                meta.textContent = `投影片 ${song.startSlide}–${song.endSlide}・${song.result.sections.length} 個段落`;
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn-primary';
+                button.textContent = `匯入${songOrdinal(index)}`;
+                button.addEventListener('click', () => importDetectedSong(index));
+
+                card.append(title, meta, button);
+                songChoices.append(card);
+            });
+            songChoices.hidden = false;
+        }
+
+        async function handlePptFile(file) {
+            if (!file || isPptParsing) return;
+
+            isPptParsing = true;
+            pptDropZone.classList.add('is-loading');
+            pptDropZone.setAttribute('aria-busy', 'true');
+            pptInput.disabled = true;
+            pptDropText.textContent = `正在解析 ${file.name}…`;
+            songChoices.hidden = true;
+            songChoices.replaceChildren();
+            setPptStatus('正在讀取投影片文字與重複段落…');
+
+            try {
+                const slides = await PptxLyricImporter.parsePptxFile(file);
+                detectedSongs = PptxLyricImporter.detectSongs(slides).map(song => ({
+                    ...song,
+                    result: PptxLyricImporter.consolidateSong(song.contentSlides)
+                }));
+                renderSongChoices();
+                setPptStatus(`已從 ${slides.length} 張文字投影片辨識到 ${detectedSongs.length} 首歌，請選擇要匯入的歌曲。`);
+            } catch (error) {
+                detectedSongs = [];
+                setPptStatus(error.message || '無法解析這份 PPTX。', true);
+            } finally {
+                isPptParsing = false;
+                pptDropZone.classList.remove('is-loading');
+                pptDropZone.removeAttribute('aria-busy');
+                pptInput.disabled = false;
+                pptDropText.textContent = `已選擇：${file.name}（可再拖入另一份 PPTX）`;
+            }
+        }
+
+        function importDetectedSong(index) {
+            const song = detectedSongs[index];
+            if (!song) return;
+
+            const inputEl = document.getElementById('inputLyrics');
+            if (inputEl.value.trim() && !confirm('這會取代目前的原始歌詞，確定要匯入嗎？匯入後可以復原。')) return;
+
+            applyInputChange(song.result.text);
+            setPptStatus(`已匯入${songOrdinal(index)}：${song.result.sourceSlideCount} 張歌詞投影片整理為 ${song.result.sections.length} 個段落。`);
+            inputEl.scrollIntoView({ block: 'center' });
+        }
+
+        pptInput.addEventListener('change', event => {
+            handlePptFile(event.target.files[0]);
+            event.target.value = '';
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            pptDropZone.addEventListener(eventName, event => {
+                event.preventDefault();
+                pptDropZone.classList.add('is-dragging');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            pptDropZone.addEventListener(eventName, event => {
+                event.preventDefault();
+                pptDropZone.classList.remove('is-dragging');
+            });
+        });
+
+        pptDropZone.addEventListener('drop', event => {
+            handlePptFile(event.dataTransfer.files[0]);
+        });
 
         function formatLyrics() {
             const inputLyrics = document.getElementById('inputLyrics').value;
