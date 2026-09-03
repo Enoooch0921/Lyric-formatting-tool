@@ -433,15 +433,53 @@
         let chorusIndex = -1;
         if (groups.length > 1) {
             repeats.forEach((repeatCount, index) => {
+                if (index === 0) return;
                 if (repeatCount >= 2 && (chorusIndex === -1 || repeatCount >= repeats[chorusIndex])) {
                     chorusIndex = index;
                 }
             });
         }
 
-        if (chorusIndex === -1 && groups.length > 1) {
+        const hasRepeatedGroup = repeats.some(repeatCount => repeatCount >= 2);
+        if (!hasRepeatedGroup && groups.length > 1) {
             groups.splice(0, groups.length, firstAppearance);
             repeats.splice(0, repeats.length, 1);
+        }
+
+        const groupByKey = new Map();
+        groups.forEach((group, groupIndex) => {
+            group.forEach(key => groupByKey.set(key, groupIndex));
+        });
+        const performanceSequence = sequence
+            .map(key => groupByKey.get(key))
+            .filter((groupIndex, index, items) => index === 0 || groupIndex !== items[index - 1]);
+
+        let prechorusIndex = -1;
+        let bridgeIndex = -1;
+        if (chorusIndex > 0) {
+            let bestPrechorusTransitions = 0;
+            for (let index = 1; index < groups.length; index++) {
+                if (index === chorusIndex || repeats[index] < 2) continue;
+                const transitionsToChorus = performanceSequence.reduce((count, groupIndex, position) => (
+                    count + (groupIndex === index && performanceSequence[position + 1] === chorusIndex ? 1 : 0)
+                ), 0);
+                if (transitionsToChorus >= 2 && transitionsToChorus >= bestPrechorusTransitions) {
+                    prechorusIndex = index;
+                    bestPrechorusTransitions = transitionsToChorus;
+                }
+            }
+
+            for (let index = 1; index < groups.length; index++) {
+                if (index === chorusIndex || index === prechorusIndex || repeats[index] !== 1) continue;
+                const position = performanceSequence.indexOf(index);
+                const chorusesBefore = performanceSequence.slice(0, position)
+                    .filter(groupIndex => groupIndex === chorusIndex).length;
+                const chorusAfter = performanceSequence.slice(position + 1).includes(chorusIndex);
+                if (position !== -1 && chorusesBefore >= 2 && chorusAfter) {
+                    bridgeIndex = index;
+                    break;
+                }
+            }
         }
 
         let verseNumber = 0;
@@ -449,14 +487,24 @@
         groups.forEach((group, index) => {
             const lineGroups = group.map(key => definitions.get(key).lines);
             const isChorus = index === chorusIndex;
-            if (!isChorus) verseNumber++;
+            const isPrechorus = index === prechorusIndex;
+            const isBridge = index === bridgeIndex;
+            const isVerse = !isChorus && !isPrechorus && !isBridge;
+            if (isVerse) verseNumber++;
+            const label = isChorus
+                ? '[chorus]'
+                : isPrechorus
+                    ? '[prechorus]'
+                    : isBridge
+                        ? '[bridge]'
+                        : `[${Math.min(verseNumber, 8)}]`;
             const section = {
-                label: isChorus ? '[chorus]' : `[${Math.min(verseNumber, 8)}]`,
+                label,
                 lines: mergeLineSequences(lineGroups),
                 repeatCount: repeats[index]
             };
 
-            if (!isChorus && verseNumber > 8) {
+            if (isVerse && verseNumber > 8) {
                 const verseEight = sections.find(item => item.label === '[8]');
                 verseEight.lines = mergeLineSequences([verseEight.lines, section.lines]);
                 verseEight.repeatCount = Math.max(verseEight.repeatCount, section.repeatCount);

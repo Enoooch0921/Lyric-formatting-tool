@@ -106,6 +106,47 @@ test('keeps a song with no repetition as one conservative section', () => {
     assert.deepEqual(result.sections[0].lines, ['第一頁', '第二頁', '第三頁']);
 });
 
+test('treats the opening repeated section as a verse instead of guessing chorus', () => {
+    const opening = ['開頭主歌甲乙丙'];
+    const result = consolidateSong([
+        opening,
+        opening,
+        opening,
+        ['後續段落甲乙丙'],
+        ['結尾段落甲乙丙']
+    ].map((lines, index) => makeSlide(index + 1, lines)));
+
+    assert.deepEqual(result.sections.map(section => section.label), ['[1]', '[2]', '[3]']);
+});
+
+test('infers a repeated lead-in before chorus as prechorus', () => {
+    const verse = ['主歌甲乙丙'];
+    const verseTwo = ['第二段主歌甲乙丙'];
+    const prechorus = ['進副歌前甲乙丙'];
+    const chorus = ['副歌甲乙丙'];
+    const sequence = [verse, prechorus, chorus, verseTwo, prechorus, chorus, chorus, chorus];
+    const result = consolidateSong(sequence.map((lines, index) => makeSlide(index + 1, lines)));
+
+    assert.deepEqual(
+        result.sections.map(section => section.label),
+        ['[1]', '[prechorus]', '[chorus]', '[2]']
+    );
+});
+
+test('infers a unique late section between choruses as bridge', () => {
+    const verse = ['主歌甲乙丙'];
+    const verseTwo = ['第二段主歌甲乙丙'];
+    const chorus = ['副歌甲乙丙'];
+    const bridge = ['橋段甲乙丙'];
+    const sequence = [verse, chorus, verseTwo, chorus, bridge, chorus];
+    const result = consolidateSong(sequence.map((lines, index) => makeSlide(index + 1, lines)));
+
+    assert.deepEqual(
+        result.sections.map(section => section.label),
+        ['[1]', '[chorus]', '[2]', '[bridge]']
+    );
+});
+
 test('never creates verse labels above eight', () => {
     const verses = Array.from({ length: 9 }, (_, index) => [`唯一段落${index + 1}甲乙丙`]);
     const chorus = ['共同副歌甲乙丙'];
