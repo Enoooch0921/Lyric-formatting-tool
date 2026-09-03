@@ -36,16 +36,16 @@
         const normalized = normalizeLine(line);
         if (!normalized) return null;
 
-        let match = normalized.match(/^\[\s*([1-9]\d*)\s*\]\s*(?:[:.]\s*)?(.*)$/);
+        let match = normalized.match(/^\[\s*([1-8])\s*\]\s*(?:[:.]\s*)?(.*)$/);
         if (match) return makeSection(match[1], match[2]);
 
-        match = normalized.match(/^\[?\s*(?:v|verse)\s*([1-9]\d*)\s*\]?(?=\s|[:.]|$)\s*(?:[:.]\s*)?(.*)$/i);
+        match = normalized.match(/^\[?\s*(?:v|verse)\s*([1-8])\s*\]?(?=\s|[:.]|$)\s*(?:[:.]\s*)?(.*)$/i);
         if (match) return makeSection(match[1], match[2]);
 
-        match = normalized.match(/^([1-9]\d?)\s+(.+)$/);
+        match = normalized.match(/^([1-8])\s+(.+)$/);
         if (match) return makeSection(match[1], match[2]);
 
-        match = normalized.match(/^([1-9]\d*)\s*(?:[:.]\s*(.*))?$/);
+        match = normalized.match(/^([1-8])\s*(?:[:.]\s*(.*))?$/);
         if (match) return makeSection(match[1], match[2]);
 
         match = normalized.match(/^\[?\s*(pre[\s-]?(?:chorus|chrous|c)|pro[\s-]?(?:chorus|chrous|c)|chorus|chrous|chrouse|chros|bridge|brisge|brigde|br|pre|c|b|p)\s*\]?(?=\s|[:.]|$)\s*(?:[:.]\s*)?(.*)$/i);

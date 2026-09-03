@@ -22,13 +22,13 @@ test('removes punctuation that was previously missed', () => {
     );
 });
 
-test('recognizes any positive verse number without matching normal words', () => {
-    assert.deepEqual(parseSectionLine('Verse 12: 歌詞'), {
-        label: '[12]',
+test('recognizes verse numbers 1 through 8 without matching other numbers or words', () => {
+    assert.deepEqual(parseSectionLine('Verse 8: 歌詞'), {
+        label: '[8]',
         content: '歌詞'
     });
-    assert.deepEqual(parseSectionLine('[27] 歌詞'), {
-        label: '[27]',
+    assert.deepEqual(parseSectionLine('[7] 歌詞'), {
+        label: '[7]',
         content: '歌詞'
     });
     assert.deepEqual(parseSectionLine('6'), {
@@ -39,6 +39,9 @@ test('recognizes any positive verse number without matching normal words', () =>
         label: '[6]',
         content: '第六段歌詞'
     });
+    assert.equal(parseSectionLine('Verse 9'), null);
+    assert.equal(parseSectionLine('[9]'), null);
+    assert.equal(parseSectionLine('9'), null);
     assert.equal(parseSectionLine('v1ctory belongs to Jesus'), null);
     assert.equal(parseSectionLine('10000 Reasons'), null);
 });
@@ -64,7 +67,7 @@ test('classifies language conservatively', () => {
 
 test('language filters keep section, mixed, neutral, and blank lines', () => {
     const input = [
-        'Verse 12',
+        'Verse 8',
         '單單仰望祢',
         'I worship You',
         'Jesus 我愛祢',
@@ -75,7 +78,7 @@ test('language filters keep section, mixed, neutral, and blank lines', () => {
 
     const chinese = filterLyricsByLanguage(input, 'chinese');
     assert.equal(chinese.text, [
-        'Verse 12',
+        'Verse 8',
         '單單仰望祢',
         'Jesus 我愛祢',
         '♪',
@@ -87,7 +90,7 @@ test('language filters keep section, mixed, neutral, and blank lines', () => {
 
     const english = filterLyricsByLanguage(input, 'english');
     assert.equal(english.text, [
-        'Verse 12',
+        'Verse 8',
         'I worship You',
         'Jesus 我愛祢',
         '♪',
