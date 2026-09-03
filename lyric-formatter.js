@@ -62,13 +62,27 @@
     }
 
     function cleanLyricContent(content) {
+        const apostropheTokens = {
+            "'": '\ue000',
+            '\u2018': '\ue001',
+            '\u2019': '\ue002'
+        };
+        const tokenApostrophes = Object.fromEntries(
+            Object.entries(apostropheTokens).map(([apostrophe, token]) => [token, apostrophe])
+        );
+
         return fullWidthToHalfWidth(content)
-            // Apostrophes in contractions should not split one English word into two.
-            .replace(/['\u2018\u2019]+/g, '')
+            // Keep apostrophes that are part of an English word while cleaning other punctuation.
+            .replace(/(\p{Script=Latin})(['\u2018\u2019])(?=\p{Script=Latin})/gu, (
+                _match,
+                letter,
+                apostrophe
+            ) => letter + apostropheTokens[apostrophe])
             // Treat all remaining punctuation and symbols as word boundaries.
             .replace(/[\p{P}\p{S}]+/gu, ' ')
             .replace(/\s+/g, ' ')
-            .trim();
+            .trim()
+            .replace(/[\ue000-\ue002]/g, token => tokenApostrophes[token]);
     }
 
     function wrapContent(content, visualLimit) {

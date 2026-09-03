@@ -10,15 +10,16 @@ const {
     keepOddContentLines
 } = require('../lyric-formatter.js');
 
-test('removes apostrophes without splitting English contractions', () => {
-    assert.equal(cleanLyricContent("You're all I need"), 'Youre all I need');
-    assert.equal(cleanLyricContent('I\u2019m Yours'), 'Im Yours');
+test('preserves apostrophes inside English contractions', () => {
+    assert.equal(cleanLyricContent("You're all I need"), "You're all I need");
+    assert.equal(cleanLyricContent('I\u2019m Yours'), 'I\u2019m Yours');
+    assert.equal(cleanLyricContent('\u201cYou\u2019re here!\u201d'), 'You\u2019re here');
 });
 
 test('keeps a short English lyric together instead of orphaning its last word', () => {
     assert.equal(
         formatLyricsText('I\u2019m standing on Your faithfulness', 13),
-        'Im standing on Your faithfulness'
+        'I\u2019m standing on Your faithfulness'
     );
 });
 
