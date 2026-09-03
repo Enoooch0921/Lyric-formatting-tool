@@ -1,0 +1,129 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const {
+    parseSectionLine,
+    cleanLyricContent,
+    formatLyricsText,
+    classifyLyricLine,
+    filterLyricsByLanguage,
+    keepOddContentLines
+} = require('../lyric-formatter.js');
+
+test('removes apostrophes without splitting English contractions', () => {
+    assert.equal(cleanLyricContent("You're all I need"), 'Youre all I need');
+    assert.equal(cleanLyricContent('I\u2019m Yours'), 'Im Yours');
+});
+
+test('removes punctuation that was previously missed', () => {
+    assert.equal(
+        cleanLyricContent('祢真偉大……永遠掌權—直到萬代！'),
+        '祢真偉大 永遠掌權 直到萬代'
+    );
+});
+
+test('recognizes any positive verse number without matching normal words', () => {
+    assert.deepEqual(parseSectionLine('Verse 12: 歌詞'), {
+        label: '[12]',
+        content: '歌詞'
+    });
+    assert.deepEqual(parseSectionLine('[27] 歌詞'), {
+        label: '[27]',
+        content: '歌詞'
+    });
+    assert.deepEqual(parseSectionLine('6'), {
+        label: '[6]',
+        content: ''
+    });
+    assert.deepEqual(parseSectionLine('6 第六段歌詞'), {
+        label: '[6]',
+        content: '第六段歌詞'
+    });
+    assert.equal(parseSectionLine('v1ctory belongs to Jesus'), null);
+    assert.equal(parseSectionLine('10000 Reasons'), null);
+});
+
+test('maps Pro Chorus typo variants to prechorus', () => {
+    for (const input of ['Pro Chorus', 'pro-chorus', 'ProChorus', 'PRO C']) {
+        assert.deepEqual(parseSectionLine(input), {
+            label: '[prechorus]',
+            content: ''
+        });
+    }
+
+    assert.equal(formatLyricsText('Pro Chorus\n祢真偉大', 13), '[prechorus]\n祢真偉大');
+});
+
+test('classifies language conservatively', () => {
+    assert.equal(classifyLyricLine('單單仰望祢'), 'chinese');
+    assert.equal(classifyLyricLine('I worship You'), 'english');
+    assert.equal(classifyLyricLine('Jesus 我愛祢'), 'mixed');
+    assert.equal(classifyLyricLine('♪ 123'), 'neutral');
+    assert.equal(classifyLyricLine('Pre Chorus'), 'section');
+});
+
+test('language filters keep section, mixed, neutral, and blank lines', () => {
+    const input = [
+        'Verse 12',
+        '單單仰望祢',
+        'I worship You',
+        'Jesus 我愛祢',
+        '♪',
+        '',
+        'Pro Chorus'
+    ].join('\n');
+
+    const chinese = filterLyricsByLanguage(input, 'chinese');
+    assert.equal(chinese.text, [
+        'Verse 12',
+        '單單仰望祢',
+        'Jesus 我愛祢',
+        '♪',
+        '',
+        'Pro Chorus'
+    ].join('\n'));
+    assert.deepEqual(chinese.removedLines, [{ lineNumber: 3, text: 'I worship You' }]);
+    assert.equal(chinese.ambiguousCount, 2);
+
+    const english = filterLyricsByLanguage(input, 'english');
+    assert.equal(english.text, [
+        'Verse 12',
+        'I worship You',
+        'Jesus 我愛祢',
+        '♪',
+        '',
+        'Pro Chorus'
+    ].join('\n'));
+    assert.deepEqual(english.removedLines, [{ lineNumber: 2, text: '單單仰望祢' }]);
+});
+
+test('odd-line removal resets per section and stanza while preserving structure', () => {
+    const input = [
+        'Verse 1',
+        '中文一',
+        'English one',
+        '',
+        '中文二',
+        'English two',
+        'Chorus',
+        '中文三',
+        'English three'
+    ].join('\n');
+
+    const result = keepOddContentLines(input);
+    assert.equal(result.text, [
+        'Verse 1',
+        '中文一',
+        '',
+        '中文二',
+        'Chorus',
+        '中文三'
+    ].join('\n'));
+    assert.deepEqual(result.removedLines.map(line => line.lineNumber), [3, 6, 9]);
+});
+
+test('formatting clamps the configured character limit', () => {
+    const input = 'one two three four five six seven eight nine ten eleven twelve';
+    assert.equal(formatLyricsText(input, 2), formatLyricsText(input, 5));
+    assert.equal(formatLyricsText(input, 100), formatLyricsText(input, 40));
+});

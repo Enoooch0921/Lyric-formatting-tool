@@ -138,6 +138,12 @@
             transform: translateY(1px);
         }
 
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+            transform: none;
+        }
+
         .btn-primary {
             background-color: var(--primary);
             color: white;
@@ -297,6 +303,9 @@
                 <button class="btn-soft" onclick="keepOddLines()" title="去除雙語歌詞中的翻譯行">
                     🔢 移除雙數行
                 </button>
+                <button id="undoBtn" class="btn-outline" onclick="undoLastChange()" disabled title="復原最近一次輸入變更">
+                    ↶ 復原上一步
+                </button>
             </div>
         </div>
 
@@ -320,177 +329,70 @@
         </div>
     </div>
 
+    <script src="lyric-formatter.js"></script>
     <script>
-        function fullWidthToHalfWidth(str) {
-            return str.replace(/[\uff01-\uff5e]/g, function(ch) {
-                return String.fromCharCode(ch.charCodeAt(0) - 0xfee0);
-            }).replace(/\u3000/g, ' ');
-        }
-
-        function getVisualLength(str) {
-            let len = 0;
-            for (let i = 0; i < str.length; i++) {
-                if (str.charCodeAt(i) <= 127) len += 1;
-                else len += 2;
-            }
-            return len;
-        }
+        const inputHistory = [];
 
         function formatLyrics() {
-            const inputElement = document.getElementById('inputLyrics');
-            const visualLimit = (parseInt(document.getElementById('charLimit').value) || 12) * 2;
-            let inputLyrics = inputElement.value;
-
-            let processed = fullWidthToHalfWidth(inputLyrics);
-            // 移除標點，保留空格作為唯一的分割依據
-            processed = processed.replace(/[，。、；：“”（）《》「」,.:;"'?!()~]/g, ' ');
-
-            const lines = processed.split('\n');
-            let formattedLines = [];
-
-            lines.forEach(line => {
-                let cleanedLine = line.replace(/\s+/g, ' ').trim();
-                if (cleanedLine === "") return;
-
-                let label = "";
-                let content = cleanedLine;
-                const lowerLine = cleanedLine.toLowerCase();
-
-                // 標籤與糾錯邏輯
-                const verseMatch = lowerLine.match(/^\[?(v|verse)\s*([0-9]+)\]?/i);
-                // 新增 pro chorus 支援
-                const tagMatch = lowerLine.match(/^\[?(chorus|chrous|chrouse|chros|c|bridge|br|brisge|brigde|b|pre(-)?chorus|pre(-)?chrous|pre|pre(-)?c|pro(-)?chorus|pro(-)?c)\]?(\s|:|\.|$)/i);
-
-                if (verseMatch) {
-                    label = `[${verseMatch[2]}]`;
-                    content = cleanedLine.substring(verseMatch[0].length).trim();
-                } 
-                else if (tagMatch) {
-                    let tag = tagMatch[1].replace(/-/g, '');
-                    if (tag.startsWith('c')) label = `[chorus]`;
-                    else if (tag.startsWith('b')) label = `[bridge]`;
-                    else if (tag.startsWith('p')) label = `[prechorus]`; // Covers Pre & Pro
-                    content = cleanedLine.substring(tagMatch[0].length).trim();
-                } 
-                else {
-                    const firstChar = lowerLine.charAt(0);
-                    const isDigit = ['1','2','3','4','5'].includes(firstChar);
-                    
-                    if (isDigit) {
-                        label = `[${firstChar}]`;
-                        content = content.substring(1).trim();
-                    } 
-                    else if (['c', 'b', 'p'].includes(firstChar)) {
-                        const nextChar = lowerLine.charAt(1);
-                        const isNextEnglish = nextChar >= 'a' && nextChar <= 'z';
-                        if (!isNextEnglish) {
-                            if (firstChar === 'c') label = `[chorus]`;
-                            else if (firstChar === 'b') label = `[bridge]`;
-                            else if (firstChar === 'p') label = `[prechorus]`;
-                            content = content.substring(1).trim();
-                        }
-                    }
-                }
-
-                if (label !== "" && content === "") {
-                    formattedLines.push(label);
-                    return;
-                }
-                if (label !== "") formattedLines.push(label);
-                
-                // 斷行處理 (含孤兒字防護)
-                if (content !== "") {
-                    const segments = content.split(' ');
-                    
-                    if (segments.length > 0) {
-                        let currentLine = "";
-                        let currentLen = 0;
-
-                        segments.forEach((segment, index) => {
-                            if (segment === "") return; 
-
-                            const segmentLen = getVisualLength(segment);
-                            const spaceWidth = (currentLine !== "") ? 1 : 0;
-
-                            // 孤兒字防護邏輯：
-                            // 如果是這一行的最後一個字，給予額外的容忍度 (5個單位，約2.5個中文字或5個英文字母)
-                            const isLastWord = (index === segments.length - 1);
-                            const tolerance = isLastWord ? 5 : 0;
-
-                            if (currentLen + spaceWidth + segmentLen > visualLimit + tolerance && currentLine !== "") {
-                                formattedLines.push(currentLine);
-                                currentLine = segment;
-                                currentLen = segmentLen;
-                            } else {
-                                currentLine += (currentLine === "" ? "" : " ") + segment;
-                                currentLen += spaceWidth + segmentLen;
-                            }
-                        });
-                        
-                        if (currentLine) formattedLines.push(currentLine);
-                    }
-                }
-            });
-
-            // 輸出
-            let finalOutput = "";
-            for (let i = 0; i < formattedLines.length; i++) {
-                const line = formattedLines[i];
-                if (line.startsWith('[')) {
-                    finalOutput += line + "\n";
-                } else {
-                    finalOutput += line + "\n\n";
-                }
-            }
-
-            document.getElementById('outputLyrics').value = finalOutput.trim();
+            const inputLyrics = document.getElementById('inputLyrics').value;
+            const charLimit = document.getElementById('charLimit').value;
+            document.getElementById('outputLyrics').value = LyricFormatter.formatLyricsText(inputLyrics, charLimit);
         }
+
+        function applyInputChange(nextValue) {
+            const inputEl = document.getElementById('inputLyrics');
+            if (nextValue === inputEl.value) return;
+
+            inputHistory.push(inputEl.value);
+            if (inputHistory.length > 20) inputHistory.shift();
+            inputEl.value = nextValue;
+            document.getElementById('undoBtn').disabled = false;
+            formatLyrics();
+        }
+
+        function undoLastChange() {
+            if (!inputHistory.length) return;
+            document.getElementById('inputLyrics').value = inputHistory.pop();
+            document.getElementById('undoBtn').disabled = inputHistory.length === 0;
+            formatLyrics();
+        }
+
+        document.getElementById('inputLyrics').addEventListener('input', () => {
+            inputHistory.length = 0;
+            document.getElementById('undoBtn').disabled = true;
+        });
 
         // 翻譯與其他工具
         function keepChineseOnly() {
-            const inputEl = document.getElementById('inputLyrics');
-            const lines = inputEl.value.split('\n');
-            const filtered = lines.filter(line => {
-                if(line.trim() === "") return true;
-                if(line.trim().match(/^\[|^verse|^chorus|^bridge|^c$|^b$|^1$/i)) return true;
-                return /[\u4e00-\u9fa5]/.test(line);
-            });
-            inputEl.value = filtered.join('\n');
-            formatLyrics();
+            filterByLanguage('chinese', '中文');
         }
 
         function keepEnglishOnly() {
+            filterByLanguage('english', '英文');
+        }
+
+        function filterByLanguage(language, label) {
             const inputEl = document.getElementById('inputLyrics');
-            const lines = inputEl.value.split('\n');
-            const filtered = lines.filter(line => {
-                if(line.trim() === "") return true;
-                if(line.trim().match(/^\[|^verse|^chorus|^bridge|^c$|^b$|^1$/i)) return true;
-                return !/[\u4e00-\u9fa5]/.test(line);
-            });
-            inputEl.value = filtered.join('\n');
-            formatLyrics();
+            const result = LyricFormatter.filterLyricsByLanguage(inputEl.value, language);
+            if (!result.removedLines.length) {
+                alert(`沒有找到可移除的非${label}行。中英混合或無法判定的行會保留。`);
+                return;
+            }
+
+            const message = `將移除 ${result.removedLines.length} 行明確的非${label}內容。\n中英混合或無法判定的 ${result.ambiguousCount} 行會保留，操作後也可以復原。\n\n確定繼續嗎？`;
+            if (confirm(message)) applyInputChange(result.text);
         }
 
         function keepOddLines() {
-            if(!confirm("這會刪除每兩行中的第二行，確定嗎？")) return;
             const inputEl = document.getElementById('inputLyrics');
-            const lines = inputEl.value.split('\n').filter(l => l.trim() !== "");
-            let resultLines = [];
-            let contentCounter = 0;
-            
-            lines.forEach(line => {
-                const isTag = line.match(/^\[|^verse|^chorus|^bridge|^pre|^c$|^b$|^p$|^[1-5]$/i);
-                if (isTag) {
-                    resultLines.push(line);
-                } else {
-                    contentCounter++;
-                    if (contentCounter % 2 === 1) {
-                        resultLines.push(line);
-                    }
-                }
-            });
-            inputEl.value = resultLines.join('\n');
-            formatLyrics();
+            const result = LyricFormatter.keepOddContentLines(inputEl.value);
+            if (!result.removedLines.length) {
+                alert('沒有找到可移除的雙數內容行。');
+                return;
+            }
+
+            const message = `將在每個段落內移除 ${result.removedLines.length} 個雙數內容行，段落標籤與空白行會保留。\n操作後可以按「復原上一步」。\n\n確定繼續嗎？`;
+            if (confirm(message)) applyInputChange(result.text);
         }
 
         function replaceText(from, to) {
@@ -501,8 +403,7 @@
 
         function clearAll() {
             if(confirm('確定要清空所有內容嗎？')) {
-                document.getElementById('inputLyrics').value = '';
-                document.getElementById('outputLyrics').value = '';
+                applyInputChange('');
             }
         }
 
