@@ -182,7 +182,7 @@
             flex-wrap: wrap;
         }
 
-        /* PPTX Import */
+        /* Lyric file import */
         .ppt-import-header {
             display: flex;
             justify-content: space-between;
@@ -200,6 +200,13 @@
             margin: 4px 0 0;
             color: var(--secondary);
             font-size: 0.9rem;
+        }
+
+        @media (max-width: 600px) {
+            .ppt-import-header {
+                flex-direction: column;
+                gap: 8px;
+            }
         }
 
         .privacy-note {
@@ -225,6 +232,7 @@
         }
 
         .ppt-drop-zone:hover,
+        .ppt-drop-zone:focus-within,
         .ppt-drop-zone.is-dragging {
             border-color: var(--primary);
             background: #e0e7ff;
@@ -281,6 +289,21 @@
             color: var(--secondary);
             font-size: 0.82rem;
         }
+
+        .song-choice-preview {
+            white-space: pre-line;
+            overflow-wrap: anywhere;
+            font-size: 0.9rem;
+        }
+
+        .import-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        [hidden] { display: none !important; }
 
         .song-choice button {
             margin-top: auto;
@@ -373,17 +396,22 @@
         <section class="card" aria-labelledby="pptImportTitle">
             <div class="ppt-import-header">
                 <div>
-                    <h2 id="pptImportTitle" class="ppt-import-title">從 PPT 匯入歌詞</h2>
-                    <p class="ppt-import-helper">拖入 PPTX，自動辨識歌曲、合併重複投影片，再選擇要匯入哪一首。</p>
+                    <h2 id="pptImportTitle" class="ppt-import-title">匯入歌詞檔案</h2>
+                    <p class="ppt-import-helper">拖入 PPTX 或 Word DOCX，辨識歌曲並整理段落，再選擇要匯入哪一首。</p>
                 </div>
                 <span class="privacy-note">🔒 僅在瀏覽器內解析</span>
             </div>
             <label id="pptDropZone" class="ppt-drop-zone" for="pptInput">
-                <span id="pptDropText">將 PPTX 拖到這裡，或點擊選擇檔案（最多 50 MB）</span>
-                <input id="pptInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+                <span id="pptDropText">將 PPTX／DOCX 拖到這裡，或點擊選擇檔案（最多 50 MB）</span>
+                <input id="pptInput" type="file" aria-label="選擇 PPTX 或 DOCX 歌詞檔案" accept=".pptx,.docx,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
             </label>
             <div id="pptStatus" class="ppt-status" role="status" aria-live="polite"></div>
+            <p id="fileWarnings" class="ppt-import-helper" hidden></p>
             <div id="songChoices" class="song-choices" hidden></div>
+            <div id="importActions" class="import-actions" hidden>
+                <button id="importAllBtn" class="btn-outline" type="button" onclick="importAllSongs()">匯入全部（含歌名分隔）</button>
+                <button id="importOriginalBtn" class="btn-outline" type="button" onclick="importOriginalDocument()" hidden>分歌不正確？匯入整份原文</button>
+            </div>
         </section>
 
         <div class="card">
@@ -452,16 +480,20 @@
     <script src="vendor/fflate-0.8.2.min.js"></script>
     <script src="pptx-importer.js"></script>
     <script src="lyric-formatter.js"></script>
+    <script src="docx-importer.js"></script>
     <script>
         const inputHistory = [];
         let detectedSongs = [];
-        let isPptParsing = false;
+        let isFileParsing = false;
+        let originalDocumentText = '';
 
         const pptInput = document.getElementById('pptInput');
         const pptDropZone = document.getElementById('pptDropZone');
         const pptDropText = document.getElementById('pptDropText');
         const pptStatus = document.getElementById('pptStatus');
         const songChoices = document.getElementById('songChoices');
+        const importActions = document.getElementById('importActions');
+        const fileWarnings = document.getElementById('fileWarnings');
 
         function songOrdinal(index) {
             return ['第一首', '第二首', '第三首', '第四首', '第五首', '第六首'][index] || `第 ${index + 1} 首`;
@@ -480,11 +512,15 @@
 
                 const title = document.createElement('div');
                 title.className = 'song-choice-title';
-                title.textContent = `${songOrdinal(index)}｜${song.title || song.preview}`;
+                title.textContent = `${songOrdinal(index)}｜${song.title || song.preview.split('\n')[0].slice(0, 24)}`;
 
                 const meta = document.createElement('div');
                 meta.className = 'song-choice-meta';
-                meta.textContent = `投影片 ${song.startSlide}–${song.endSlide}・${song.result.sections.length} 個段落`;
+                meta.textContent = `${song.sourceDescription}・${song.result.sections.length} 個段落`;
+
+                const preview = document.createElement('div');
+                preview.className = 'song-choice-preview';
+                preview.textContent = song.preview;
 
                 const button = document.createElement('button');
                 button.type = 'button';
@@ -492,41 +528,70 @@
                 button.textContent = `匯入${songOrdinal(index)}`;
                 button.addEventListener('click', () => importDetectedSong(index));
 
-                card.append(title, meta, button);
+                card.append(title, meta, preview, button);
                 songChoices.append(card);
             });
             songChoices.hidden = false;
+            document.getElementById('importAllBtn').hidden = detectedSongs.length < 2;
+            document.getElementById('importOriginalBtn').hidden = !originalDocumentText;
+            importActions.hidden = detectedSongs.length < 2 && !originalDocumentText;
         }
 
-        async function handlePptFile(file) {
-            if (!file || isPptParsing) return;
+        async function handleLyricFile(file) {
+            if (!file || isFileParsing) return;
 
-            isPptParsing = true;
+            isFileParsing = true;
+            detectedSongs = [];
+            originalDocumentText = '';
             pptDropZone.classList.add('is-loading');
             pptDropZone.setAttribute('aria-busy', 'true');
             pptInput.disabled = true;
             pptDropText.textContent = `正在解析 ${file.name}…`;
             songChoices.hidden = true;
             songChoices.replaceChildren();
-            setPptStatus('正在讀取投影片文字與重複段落…');
+            importActions.hidden = true;
+            fileWarnings.hidden = true;
+            setPptStatus('正在讀取歌詞與段落…');
 
             try {
-                const slides = await PptxLyricImporter.parsePptxFile(file);
-                detectedSongs = PptxLyricImporter.detectSongs(slides).map(song => ({
-                    ...song,
-                    result: PptxLyricImporter.consolidateSong(song.contentSlides)
-                }));
+                let source;
+                if (/\.docx$/i.test(file.name)) {
+                    const document = await DocxLyricImporter.parseDocxFile(file);
+                    originalDocumentText = document.paragraphs.map(paragraph => paragraph.lines.join('\n')).join('\n').trim();
+                    detectedSongs = DocxLyricImporter.detectSongs(document.paragraphs).map(song => ({
+                        ...song,
+                        sourceDescription: `Word 文字段 ${song.startParagraph}–${song.endParagraph}`,
+                        result: DocxLyricImporter.consolidateSong(song.paragraphs)
+                    }));
+                    source = 'Word 文件';
+                    fileWarnings.textContent = ['請核對歌名與分歌結果。沒有明確段落標籤時，會依原文空白分節編為主歌；可在原始歌詞中修改。', ...document.warnings].join(' ');
+                    fileWarnings.hidden = false;
+                } else if (/\.pptx$/i.test(file.name)) {
+                    const slides = await PptxLyricImporter.parsePptxFile(file);
+                    detectedSongs = PptxLyricImporter.detectSongs(slides).map(song => ({
+                        ...song,
+                        preview: song.contentSlides.flatMap(slide => slide.lines).slice(0, 2).join('\n'),
+                        sourceDescription: `投影片 ${song.startSlide}–${song.endSlide}`,
+                        result: PptxLyricImporter.consolidateSong(song.contentSlides)
+                    }));
+                    source = `${slides.length} 張文字投影片`;
+                } else {
+                    throw new Error('請選擇 .pptx 或 .docx 檔案。舊版 .ppt／.doc 請先另存為新格式。');
+                }
+                if (!detectedSongs.length) throw new Error('找不到可匯入的歌詞。');
                 renderSongChoices();
-                setPptStatus(`已從 ${slides.length} 張文字投影片辨識到 ${detectedSongs.length} 首歌，請選擇要匯入的歌曲。`);
+                setPptStatus(`已從 ${source} 辨識到 ${detectedSongs.length} 首歌，請選擇要匯入的歌曲。`);
             } catch (error) {
                 detectedSongs = [];
-                setPptStatus(error.message || '無法解析這份 PPTX。', true);
+                originalDocumentText = '';
+                fileWarnings.hidden = true;
+                setPptStatus(error.message || '無法解析這份歌詞檔案。', true);
             } finally {
-                isPptParsing = false;
+                isFileParsing = false;
                 pptDropZone.classList.remove('is-loading');
                 pptDropZone.removeAttribute('aria-busy');
                 pptInput.disabled = false;
-                pptDropText.textContent = `已選擇：${file.name}（可再拖入另一份 PPTX）`;
+                pptDropText.textContent = `已選擇：${file.name}（可再拖入另一份 PPTX／DOCX）`;
             }
         }
 
@@ -534,16 +599,29 @@
             const song = detectedSongs[index];
             if (!song) return;
 
+            importLyrics(song.result.text, `已匯入${songOrdinal(index)}：整理為 ${song.result.sections.length} 個段落。`);
+        }
+
+        function importLyrics(text, message) {
             const inputEl = document.getElementById('inputLyrics');
             if (inputEl.value.trim() && !confirm('這會取代目前的原始歌詞，確定要匯入嗎？匯入後可以復原。')) return;
-
-            applyInputChange(song.result.text);
-            setPptStatus(`已匯入${songOrdinal(index)}：${song.result.sourceSlideCount} 張歌詞投影片整理為 ${song.result.sections.length} 個段落。`);
+            applyInputChange(text);
+            setPptStatus(message);
             inputEl.scrollIntoView({ block: 'center' });
         }
 
+        function importAllSongs() {
+            if (!detectedSongs.length) return;
+            const text = detectedSongs.map((song, index) => `${song.title || songOrdinal(index)}\n\n${song.result.text}`).join('\n\n\n');
+            importLyrics(text, `已匯入全部 ${detectedSongs.length} 首歌，以歌名分隔；複製時可依需要取用各首歌詞。`);
+        }
+
+        function importOriginalDocument() {
+            if (originalDocumentText) importLyrics(originalDocumentText, '已匯入整份 Word 原文，保留歌名與原始分節，可直接修改。');
+        }
+
         pptInput.addEventListener('change', event => {
-            handlePptFile(event.target.files[0]);
+            handleLyricFile(event.target.files[0]);
             event.target.value = '';
         });
 
@@ -562,7 +640,7 @@
         });
 
         pptDropZone.addEventListener('drop', event => {
-            handlePptFile(event.dataTransfer.files[0]);
+            handleLyricFile(event.dataTransfer.files[0]);
         });
 
         function formatLyrics() {
