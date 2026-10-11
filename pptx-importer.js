@@ -114,6 +114,8 @@
     }
 
     function extractTextLines(textBody) {
+        // Cached field text can contain <number>, dates, author names, etc.
+        textBody = textBody.replace(/<a:fld\b[\s\S]*?<\/a:fld>/g, '');
         const lines = [];
         const paragraphPattern = /<a:p(?:\s[^>]*)?>([\s\S]*?)<\/a:p>/g;
         let paragraphMatch;
@@ -147,13 +149,39 @@
         return { current: Number(match[1]), total: Number(match[2]) };
     }
 
-    function extractSlide(slidePart, slideXml, relationshipsXml, slideIndex) {
+    function cleanSlideShapes(shapes, slideHeight = 0) {
+        shapes.sort((left, right) => left.y - right.y || left.x - right.x);
+        let pageCounter = null;
+        const lines = [];
+        shapes.forEach(shape => {
+            if (shape.isFooter) return;
+            const atBottom = slideHeight > 0 && shape.y >= slideHeight * 0.8;
+            shape.lines.forEach(line => {
+                const counter = parsePageCounter(line);
+                // Hand-written total-current counters are common in hymn slide footers.
+                const hyphenCounter = atBottom && shape.lines.length === 1
+                    ? line.match(/^(\d{1,3})\s*[-–－]\s*(\d{1,3})$/) : null;
+                if (counter) pageCounter = counter;
+                else if (hyphenCounter && Number(hyphenCounter[2]) <= Number(hyphenCounter[1])) {
+                    pageCounter = { current: Number(hyphenCounter[2]), total: Number(hyphenCounter[1]) };
+                } else if (!(atBottom && shape.lines.length === 1 && /^\d{1,3}$/.test(line))) {
+                    lines.push(line);
+                }
+            });
+        });
+        return { lines, pageCounter };
+    }
+
+    function extractSlide(slidePart, slideXml, relationshipsXml, slideIndex, slideHeight) {
         const shapes = [];
         const shapePattern = /<p:sp\b[\s\S]*?<\/p:sp>/g;
         let shapeMatch;
 
         while ((shapeMatch = shapePattern.exec(slideXml))) {
             const shapeXml = shapeMatch[0];
+            const placeholderMatch = shapeXml.match(/<p:ph\b([^>]*)\/?\s*>/);
+            const placeholderType = placeholderMatch ? parseAttributes(placeholderMatch[1]).type : '';
+            if (['sldNum', 'dt', 'ftr', 'hdr'].includes(placeholderType)) continue;
             const textBodyMatch = shapeXml.match(/<p:txBody>([\s\S]*?)<\/p:txBody>/);
             if (!textBodyMatch) continue;
 
@@ -169,17 +197,7 @@
             });
         }
 
-        shapes.sort((left, right) => left.y - right.y || left.x - right.x);
-
-        let pageCounter = null;
-        const lyricLines = [];
-        shapes.forEach(shape => {
-            shape.lines.forEach(line => {
-                const counter = parsePageCounter(line);
-                if (counter) pageCounter = counter;
-                else lyricLines.push(line);
-            });
-        });
+        const cleaned = cleanSlideShapes(shapes, slideHeight);
 
         const relationships = relationshipsXml ? parseRelationships(relationshipsXml) : new Map();
         const backgroundParts = [...relationships.values()]
@@ -190,14 +208,16 @@
         return {
             index: slideIndex,
             part: slidePart,
-            lines: lyricLines,
-            pageCounter,
+            ...cleaned,
             backgroundSignature: backgroundParts.join('|')
         };
     }
 
     function parsePptxBytes(bytes, explicitZipApi) {
         const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        if ([0xd0, 0xcf, 0x11, 0xe0].every((value, index) => data[index] === value)) {
+            throw new Error('這是舊版 PPT 格式，請使用 .ppt 副檔名匯入，或另存為真正的 PPTX。');
+        }
         if (data.byteLength > MAX_PPTX_BYTES) {
             throw new Error('PPTX 超過 50 MB，請先壓縮圖片或拆分檔案。');
         }
@@ -224,6 +244,9 @@
         const decodeFile = part => decoder.decode(files[part]);
         const slideParts = extractSlideOrder(files, decodeFile);
         if (!slideParts.length) throw new Error('找不到 PPTX 投影片內容。');
+        const sizeMatch = files['ppt/presentation.xml']
+            && decodeFile('ppt/presentation.xml').match(/<p:sldSz\b([^>]*)\/?\s*>/);
+        const slideHeight = sizeMatch ? Number(parseAttributes(sizeMatch[1]).cy || 0) : 0;
 
         const slides = slideParts.map((slidePart, index) => {
             const relsPart = relationshipPartPath(slidePart);
@@ -231,7 +254,8 @@
                 slidePart,
                 decodeFile(slidePart),
                 files[relsPart] ? decodeFile(relsPart) : '',
-                index + 1
+                index + 1,
+                slideHeight
             );
         }).filter(slide => slide.lines.length);
 
@@ -272,14 +296,15 @@
 
     function isLikelyTitleSlide(slides, index) {
         const slide = slides[index];
-        if (!slide || slide.lines.length !== 1) return false;
+        if (!slide || !slide.lines.length || slide.lines.length > 2 || slide.pageCounter) return false;
 
-        const title = normalizeForComparison(slide.lines[0]);
+        const title = normalizeForComparison(slide.lines.join(''));
         if (!title) return false;
+        if (slides.slice(0, index).some(item => normalizeForComparison(item.lines.join('')) === title)) return false;
 
         const nearbyContent = slides.slice(index + 1, index + 3)
-            .flatMap(item => item.lines)
-            .map(normalizeForComparison);
+            .filter(item => item.lines.length > slide.lines.length)
+            .map(item => normalizeForComparison(item.lines.join('')));
         const titleAppearsNearby = nearbyContent.some(line => line.includes(title));
 
         const previousBackground = slides[index - 1]?.backgroundSignature;
@@ -316,7 +341,7 @@
             index,
             slides: songSlides,
             contentSlides: isLikelyTitleSlide(songSlides, 0) ? songSlides.slice(1) : songSlides,
-            title: isLikelyTitleSlide(songSlides, 0) ? songSlides[0].lines[0] : '',
+            title: isLikelyTitleSlide(songSlides, 0) ? songSlides[0].lines.join(' ') : '',
             startSlide: songSlides[0].index,
             endSlide: songSlides[songSlides.length - 1].index,
             preview: songSlides[0].lines.join(' ').slice(0, 24) || `第 ${index + 1} 首`
@@ -430,11 +455,20 @@
         }
 
         const repeats = groups.map(group => countPatternOccurrences(sequence, group));
+        const groupByKey = new Map();
+        groups.forEach((group, groupIndex) => {
+            group.forEach(key => groupByKey.set(key, groupIndex));
+        });
+        const performanceSequence = sequence
+            .map(key => groupByKey.get(key))
+            .filter((groupIndex, index, items) => index === 0 || groupIndex !== items[index - 1]);
         let chorusIndex = -1;
         if (groups.length > 1) {
             repeats.forEach((repeatCount, index) => {
                 if (index === 0) return;
-                if (repeatCount >= 2 && (chorusIndex === -1 || repeatCount >= repeats[chorusIndex])) {
+                // Consecutive ending copies alone are not evidence of a chorus.
+                const separateReturns = performanceSequence.filter(groupIndex => groupIndex === index).length;
+                if (separateReturns >= 2 && repeatCount >= 2 && (chorusIndex === -1 || repeatCount >= repeats[chorusIndex])) {
                     chorusIndex = index;
                 }
             });
@@ -445,14 +479,6 @@
             groups.splice(0, groups.length, firstAppearance);
             repeats.splice(0, repeats.length, 1);
         }
-
-        const groupByKey = new Map();
-        groups.forEach((group, groupIndex) => {
-            group.forEach(key => groupByKey.set(key, groupIndex));
-        });
-        const performanceSequence = sequence
-            .map(key => groupByKey.get(key))
-            .filter((groupIndex, index, items) => index === 0 || groupIndex !== items[index - 1]);
 
         let prechorusIndex = -1;
         let bridgeIndex = -1;
@@ -524,6 +550,7 @@
 
     return {
         parsePageCounter,
+        cleanSlideShapes,
         extractTextLines,
         parsePptxBytes,
         parsePptxFile,

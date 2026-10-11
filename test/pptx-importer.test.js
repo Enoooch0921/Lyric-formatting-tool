@@ -150,7 +150,7 @@ test('infers a unique late section between choruses as bridge', () => {
 test('never creates verse labels above eight', () => {
     const verses = Array.from({ length: 9 }, (_, index) => [`唯一段落${index + 1}甲乙丙`]);
     const chorus = ['共同副歌甲乙丙'];
-    const sequence = [...verses, chorus, chorus, chorus];
+    const sequence = [...verses, chorus, verses[0], chorus, chorus];
     const result = consolidateSong(sequence.map((lines, index) => makeSlide(index + 1, lines)));
 
     assert.deepEqual(
@@ -158,4 +158,61 @@ test('never creates verse labels above eight', () => {
         ['[1]', '[2]', '[3]', '[4]', '[5]', '[6]', '[7]', '[8]', '[chorus]']
     );
     assert.deepEqual(result.sections[7].lines, [...verses[7], ...verses[8]]);
+});
+
+test('merges repeated hymn endings without guessing chorus', () => {
+    const verses = Array.from({ length: 8 }, (_, index) => [`獨立詩節${index + 1}甲乙丙`]);
+    const result = consolidateSong([...verses, verses[7]].map((lines, index) => makeSlide(index + 1, lines)));
+    assert.deepEqual(result.sections.map(section => section.label), verses.map((_, index) => `[${index + 1}]`));
+    assert.equal(result.sections[7].repeatCount, 2);
+    assert.deepEqual(result.sections[7].lines, verses[7]);
+});
+
+test('recognizes a two-line hymn title but not numbered lyric pages', () => {
+    const songs = detectSongs([
+        makeSlide(1, ['詩歌標題上行', '詩歌標題下行']),
+        makeSlide(2, ['詩歌標題上行', '詩歌標題下行', '主歌甲', '主歌乙'], { current: 1, total: 2 }),
+        makeSlide(3, ['另一節甲', '另一節乙'], { current: 2, total: 2 })
+    ]);
+    assert.equal(songs.length, 1);
+    assert.equal(songs[0].title, '詩歌標題上行 詩歌標題下行');
+    assert.deepEqual(songs[0].contentSlides.map(slide => slide.index), [2, 3]);
+});
+
+test('does not mistake repeated two-line lyric pages for song titles', () => {
+    const a = ['重複主歌甲', '重複主歌乙'];
+    const b = ['重複副歌甲', '重複副歌乙'];
+    const slides = [a, b, a, b, a, a].map((lines, index) => makeSlide(index + 1, lines));
+    const songs = detectSongs(slides);
+    assert.equal(songs.length, 1);
+    assert.equal(songs[0].title, '');
+    assert.equal(songs[0].contentSlides.length, slides.length);
+});
+
+test('removes fields, footer placeholders and bottom counters, not lyric numbers', () => {
+    const textShape = (content, y, placeholder = '') => `<p:sp><p:nvSpPr><p:nvPr>${placeholder}</p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="${y}"/></a:xfrm></p:spPr><p:txBody><a:p>${content}</a:p></p:txBody></p:sp>`;
+    const run = text => `<a:r><a:t>${text}</a:t></a:r>`;
+    const bytes = fflate.zipSync({
+        'ppt/presentation.xml': fflate.strToU8('<p:presentation><p:sldSz cx="10000" cy="10000"/></p:presentation>'),
+        'ppt/slides/slide1.xml': fflate.strToU8(`<p:sld>
+            ${textShape(run('I’m standing on Your faithfulness'), 100)}
+            ${textShape(run('9-1'), 300)}
+            ${textShape(run('123'), 400)}
+            ${textShape(run('歌詞中的數字 9-1'), 8500)}
+            ${textShape(run('9-1'), 9000)}
+            ${textShape(run('12'), 9500)}
+            ${textShape(run('內部頁尾資訊'), 200, '<p:ph type="ftr"/>')}
+            ${textShape('<a:fld type="slidenum"><a:t>&lt;number&gt;</a:t></a:fld>', 1000)}
+            ${textShape('<a:fld type="datetime1"><a:t>2026/10/11</a:t></a:fld>' + run('保留同一框的歌詞'), 1100)}
+        </p:sld>`),
+        'ppt/notesSlides/notesSlide1.xml': fflate.strToU8(slideXml(['不匯入的備註'])),
+        'ppt/slideMasters/slideMaster1.xml': fflate.strToU8(slideXml(['不匯入的母片']))
+    });
+    const [slide] = parsePptxBytes(bytes);
+    assert.deepEqual(slide.lines, ['I’m standing on Your faithfulness', '9-1', '123', '保留同一框的歌詞', '歌詞中的數字 9-1']);
+    assert.deepEqual(slide.pageCounter, { current: 1, total: 9 });
+});
+
+test('rejects legacy bytes mislabeled as PPTX with an actionable error', () => {
+    assert.throws(() => parsePptxBytes(Uint8Array.from([0xd0, 0xcf, 0x11, 0xe0])), /舊版 PPT/);
 });

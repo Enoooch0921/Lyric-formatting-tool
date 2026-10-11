@@ -397,13 +397,13 @@
             <div class="ppt-import-header">
                 <div>
                     <h2 id="pptImportTitle" class="ppt-import-title">匯入歌詞檔案</h2>
-                    <p class="ppt-import-helper">拖入 PPTX 或 Word DOCX，辨識歌曲並整理段落，再選擇要匯入哪一首。</p>
+                    <p class="ppt-import-helper">拖入 PPT、PPTX 或 Word DOCX，辨識歌曲並整理段落，再選擇要匯入哪一首。</p>
                 </div>
                 <span class="privacy-note">🔒 僅在瀏覽器內解析</span>
             </div>
             <label id="pptDropZone" class="ppt-drop-zone" for="pptInput">
-                <span id="pptDropText">將 PPTX／DOCX 拖到這裡，或點擊選擇檔案（最多 50 MB）</span>
-                <input id="pptInput" type="file" aria-label="選擇 PPTX 或 DOCX 歌詞檔案" accept=".pptx,.docx,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                <span id="pptDropText">將 PPT／PPTX／DOCX 拖到這裡，或點擊選擇檔案（最多 50 MB）</span>
+                <input id="pptInput" type="file" aria-label="選擇 PPT、PPTX 或 DOCX 歌詞檔案" accept=".ppt,.pptx,.docx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
             </label>
             <div id="pptStatus" class="ppt-status" role="status" aria-live="polite"></div>
             <p id="fileWarnings" class="ppt-import-helper" hidden></p>
@@ -479,6 +479,8 @@
 
     <script src="vendor/fflate-0.8.2.min.js"></script>
     <script src="pptx-importer.js"></script>
+    <script src="vendor/cfb-1.2.2.min.js"></script>
+    <script src="ppt-importer.js"></script>
     <script src="lyric-formatter.js"></script>
     <script src="docx-importer.js"></script>
     <script>
@@ -566,8 +568,10 @@
                     source = 'Word 文件';
                     fileWarnings.textContent = ['請核對歌名與分歌結果。沒有明確段落標籤時，會依原文空白分節編為主歌；可在原始歌詞中修改。', ...document.warnings].join(' ');
                     fileWarnings.hidden = false;
-                } else if (/\.pptx$/i.test(file.name)) {
-                    const slides = await PptxLyricImporter.parsePptxFile(file);
+                } else if (/\.pptx?$/i.test(file.name)) {
+                    const slides = /\.ppt$/i.test(file.name)
+                        ? await PptLyricImporter.parsePptFile(file)
+                        : await PptxLyricImporter.parsePptxFile(file);
                     detectedSongs = PptxLyricImporter.detectSongs(slides).map(song => ({
                         ...song,
                         preview: song.contentSlides.flatMap(slide => slide.lines).slice(0, 2).join('\n'),
@@ -575,8 +579,10 @@
                         result: PptxLyricImporter.consolidateSong(song.contentSlides)
                     }));
                     source = `${slides.length} 張文字投影片`;
+                    fileWarnings.textContent = '已排除母片、備註與頁碼欄位。分歌與段落名稱為自動判斷，匯入後請核對；圖片歌詞目前不支援。';
+                    fileWarnings.hidden = false;
                 } else {
-                    throw new Error('請選擇 .pptx 或 .docx 檔案。舊版 .ppt／.doc 請先另存為新格式。');
+                    throw new Error('請選擇 .ppt、.pptx 或 .docx 檔案。舊版 .doc 請先另存為 DOCX。');
                 }
                 if (!detectedSongs.length) throw new Error('找不到可匯入的歌詞。');
                 renderSongChoices();
@@ -591,7 +597,7 @@
                 pptDropZone.classList.remove('is-loading');
                 pptDropZone.removeAttribute('aria-busy');
                 pptInput.disabled = false;
-                pptDropText.textContent = `已選擇：${file.name}（可再拖入另一份 PPTX／DOCX）`;
+                pptDropText.textContent = `已選擇：${file.name}（可再拖入另一份 PPT／PPTX／DOCX）`;
             }
         }
 
