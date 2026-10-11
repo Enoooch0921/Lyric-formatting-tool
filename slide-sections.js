@@ -80,6 +80,36 @@
             sourceSlideCount: slides.length, mode, warnings, missingSections: [] };
     }
 
+    // Source/reference numbers describe provenance, not export positions. Gapped
+    // verse tags cannot be saved by some lyric applications, so number the actual
+    // imported verses consecutively, without adding any missing lyrics.
+    function forExport(result) {
+        const sections = [];
+        const warnings = [...result.warnings];
+        const mappings = [];
+        let verseCount = 0;
+        let lastVerse;
+        result.sections.forEach(item => {
+            const sourceLabel = item.label;
+            const exported = { ...item, sourceLabel, lines: [...item.lines], slideIndices: [...(item.slideIndices || [])] };
+            if (/^\[[1-8]\]$/.test(sourceLabel)) {
+                verseCount++;
+                exported.label = `[${Math.min(verseCount, 8)}]`;
+                if (exported.label !== sourceLabel) mappings.push(`匯出 ${exported.label} 對應${result.mode === 'reference' ? '參考' : '原始'} ${sourceLabel}`);
+                if (verseCount > 8) {
+                    lastVerse.lines.push(...exported.lines);
+                    lastVerse.slideIndices.push(...exported.slideIndices);
+                    return;
+                }
+                lastVerse = exported;
+            }
+            sections.push(exported);
+        });
+        if (mappings.length) warnings.push(`主歌已連續編號：${mappings.join('；')}。原始編號僅供核對，不放入匯出標記。`);
+        if (verseCount > 8) warnings.push('主歌超過八段，後續歌詞已併入 [8]，未刪除內容；請核對。');
+        return { ...result, sections, warnings, text: sections.map(item => [item.label, ...item.lines].join('\n')).join('\n\n') };
+    }
+
     function explicitSections(pages) {
         if (!pages.some(page => page.lines.some(line => parseLabel(line)))) return null;
         const sections = [];
@@ -206,7 +236,7 @@
                     ['沒有可靠段落界線，暫保留為一段。可選每幾頁合併，或貼入有編號的參考歌詞。']);
             }
         }
-        if (!(options.referenceText || '').trim()) return result;
+        if (!(options.referenceText || '').trim()) return forExport(result);
 
         const references = parseReference(options.referenceText);
         const matches = matchReference(pages, references);
@@ -239,18 +269,18 @@
             }
             warnings.unshift('依參考歌詞對應段落；歌詞保留投影片原文，沒有自動補字。');
         } else if (explicit) {
-            warnings.unshift('參考歌詞僅用於比對；投影片已有的段落標記保持不變。');
+            warnings.unshift('參考歌詞僅用於比對；優先依投影片已有標記分段，匯出主歌會連續編號。');
             result.sections.forEach(item => {
                 const related = new Set(pages.flatMap((page, pageIndex) => (
                     matches[pageIndex].index >= 0 && page.slideIndices.some(index => item.slideIndices.includes(index))
                         ? [references[matches[pageIndex].index].label] : []
                 )));
                 if (related.size === 1 && !related.has(item.label)) {
-                    warnings.push(`投影片 ${item.label} 內容較接近參考 ${[...related][0]}；保留投影片標記，請核對。`);
+                    warnings.push(`投影片 ${item.label} 內容較接近參考 ${[...related][0]}；保留投影片分段，請核對。`);
                 }
             });
         }
-        return { ...result, missingSections: missing, warnings: [...result.warnings, ...warnings] };
+        return forExport({ ...result, missingSections: missing, warnings: [...result.warnings, ...warnings] });
     }
 
     return { parseLabel, parseReference, consolidateSlides };

@@ -52,14 +52,15 @@ test('deduplicates complete repeated groups, not a common page from different st
     assert.deepEqual(result.sections.map(item => item.label), ['[1]', '[2]']);
 });
 
-test('explicit verse and chorus markers override fixed page counts and retain numbering', () => {
+test('explicit markers determine grouping without a reference, but exported verses never skip numbers', () => {
     const result = consolidateSlides(slides([
         ['Verse 1', ...hymn[0][0]], hymn[0][1],
         ['Chorus', ...hymn[1][0]], hymn[1][1],
         ['主歌五', ...hymn[4][0]], hymn[4][1]
     ]), { pagesPerSection: 1 });
     assert.equal(result.mode, 'explicit');
-    assert.deepEqual(result.sections.map(item => item.label), ['[1]', '[chorus]', '[5]']);
+    assert.deepEqual(result.sections.map(item => item.label), ['[1]', '[chorus]', '[2]']);
+    assert.deepEqual(result.sections.map(item => item.sourceLabel), ['[1]', '[chorus]', '[5]']);
     assert.deepEqual(result.sections[0].lines, hymn[0].flat());
     assert.deepEqual(result.sections[2].lines, hymn[4].flat());
 });
@@ -79,19 +80,22 @@ test('keeps distinctly worded sections with the same explicit label', () => {
     const result = consolidateSlides(slides([
         ['V1', ...hymn[0][0]], ['C', ...hymn[1][0]], ['V1', ...hymn[2][0]]
     ]));
-    assert.deepEqual(result.sections.map(item => item.label), ['[1]', '[chorus]', '[1]']);
+    assert.deepEqual(result.sections.map(item => item.label), ['[1]', '[chorus]', '[2]']);
     assert.deepEqual(result.sections[2].lines, hymn[2][0]);
 });
 
-test('reference restores the original 1, 2, 3, 5 labels and reports missing verse 4 without inserting it', () => {
+test('missing reference verse 4 is advisory only: four actual verses export as 1 through 4', () => {
     const pages = [hymn[0], hymn[1], hymn[2], hymn[4]].flat();
     const result = consolidateSlides(slides([...pages, pages[7]]), { referenceText: `台語\n${reference}` });
     assert.equal(result.mode, 'reference');
-    assert.deepEqual(result.sections.map(item => item.label), ['[1]', '[2]', '[3]', '[5]']);
+    assert.deepEqual(result.sections.map(item => item.label), ['[1]', '[2]', '[3]', '[4]']);
+    assert.deepEqual(result.sections.map(item => item.sourceLabel), ['[1]', '[2]', '[3]', '[5]']);
     assert.deepEqual(result.missingSections, ['[4]']);
     assert.deepEqual(result.sections.flatMap(item => item.lines), pages.flat());
     assert.doesNotMatch(result.text, /第4節/);
     assert.match(result.warnings.join(' '), /未自動補入/);
+    assert.match(result.warnings.join(' '), /匯出 \[4\] 對應參考 \[5\]/);
+    assert.doesNotMatch(result.text, /^\[5\]$/m);
 });
 
 test('reference comparison ignores punctuation and line wrapping, preserving source contractions', () => {
@@ -146,11 +150,13 @@ test('unknown pages remain in the output and reference mode falls back without p
 test('reference cannot override explicit slide labels or reorder the presentation silently', () => {
     const explicit = consolidateSlides(slides([['V4', ...hymn[4].flat()]]), { referenceText: reference });
     assert.equal(explicit.mode, 'explicit');
-    assert.equal(explicit.sections[0].label, '[4]');
-    assert.match(explicit.warnings.join(' '), /標記保持不變/);
+    assert.equal(explicit.sections[0].label, '[1]');
+    assert.equal(explicit.sections[0].sourceLabel, '[4]');
+    assert.match(explicit.warnings.join(' '), /優先依投影片已有標記分段/);
     assert.match(explicit.warnings.join(' '), /\[4\] 內容較接近參考 \[5\]/);
     const reordered = consolidateSlides(slides([...hymn[1], ...hymn[0]]), { referenceText: reference });
-    assert.deepEqual(reordered.sections.map(item => item.label), ['[2]', '[1]']);
+    assert.deepEqual(reordered.sections.map(item => item.label), ['[1]', '[2]']);
+    assert.deepEqual(reordered.sections.map(item => item.sourceLabel), ['[2]', '[1]']);
     assert.match(reordered.warnings.join(' '), /順序與參考不同/);
 });
 
@@ -163,8 +169,22 @@ test('short shared text stays uncertain rather than being falsely reported as mi
 
 test('clearing the reference restores the chosen page rule', () => {
     const pages = [hymn[0], hymn[1], hymn[2], hymn[4]].flat();
-    assert.deepEqual(consolidateSlides(slides(pages), { referenceText: reference, pagesPerSection: 2 }).sections.map(item => item.label), ['[1]', '[2]', '[3]', '[5]']);
+    assert.deepEqual(consolidateSlides(slides(pages), { referenceText: reference, pagesPerSection: 2 }).sections.map(item => item.label), ['[1]', '[2]', '[3]', '[4]']);
     assert.deepEqual(consolidateSlides(slides(pages), { referenceText: '', pagesPerSection: 2 }).sections.map(item => item.label), ['[1]', '[2]', '[3]', '[4]']);
+});
+
+test('a single explicitly numbered verse exports as verse 1 even without any reference', () => {
+    const result = consolidateSlides(slides([['Verse 5', ...hymn[4].flat()]]));
+    assert.equal(result.text, `[1]\n${hymn[4].flat().join('\n')}`);
+    assert.equal(result.sections[0].sourceLabel, '[5]');
+});
+
+test('more than eight distinct explicit verses keep all lyrics without exporting verse 9', () => {
+    const pages = Array.from({ length: 10 }, (_, index) => [`V${index % 8 + 1}`, `獨立歌詞 ${index + 1}`]);
+    const result = consolidateSlides(slides(pages));
+    assert.deepEqual(result.sections.map(item => item.label), Array.from({ length: 8 }, (_, index) => `[${index + 1}]`));
+    assert.deepEqual(result.sections.flatMap(item => item.lines), pages.map(item => item[1]));
+    assert.match(result.warnings.join(' '), /超過八段/);
 });
 
 test('changing rules and references never mutates source slides', () => {

@@ -573,6 +573,9 @@
                         ruleSelect.append(option);
                     });
                     ruleLabel.append(ruleSelect);
+                    const ruleHelp = document.createElement('p');
+                    ruleHelp.className = 'ppt-import-helper';
+                    ruleHelp.textContent = '不需參考歌詞也能設定分段。匯出主歌一律從 [1] 連續編號，不跳號；原版缺段只顯示提醒，不補入歌詞。';
 
                     const referenceDetails = document.createElement('details');
                     const referenceSummary = document.createElement('summary');
@@ -583,7 +586,7 @@
                     referenceInput.placeholder = '請只貼入這一首歌，保留編號，例如：\n1.\n第一段歌詞\n\n2.\n第二段歌詞';
                     const referenceHelp = document.createElement('p');
                     referenceHelp.className = 'ppt-import-helper';
-                    referenceHelp.textContent = '優先採用 PPT 的明確標記；沒有標記時用參考歌詞分段。字詞差異會提示，不改原文、不補歌詞。清空後再套用可取消比對。';
+                    referenceHelp.textContent = '參考歌詞為選填，用於輔助分段及提醒缺漏。匯出主歌仍連續編號，參考原編號只顯示在提示。字詞差異不改原文、不補歌詞。清空後再套用可取消比對。';
                     const applyReference = document.createElement('button');
                     applyReference.type = 'button';
                     applyReference.className = 'btn-outline';
@@ -626,6 +629,7 @@
                     ruleSelect.addEventListener('change', () => updatePreview({ ...song.importOptions, pagesPerSection: ruleSelect.value }));
                     applyReference.addEventListener('click', () => updatePreview({ ...song.importOptions, referenceText: referenceInput.value }));
                     card.insertBefore(ruleLabel, button);
+                    card.insertBefore(ruleHelp, button);
                     card.insertBefore(referenceDetails, button);
                     card.insertBefore(sectionDetails, button);
                     card.insertBefore(notice, button);
