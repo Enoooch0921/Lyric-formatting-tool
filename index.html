@@ -296,6 +296,32 @@
             font-size: 0.9rem;
         }
 
+        .song-choice > details, .song-choice > label { width: 100%; min-width: 0; }
+        .song-choice summary { cursor: pointer; font-size: 0.9rem; padding: 4px 0; }
+        .song-choice select {
+            display: block;
+            width: 100%;
+            margin-top: 4px;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: white;
+            font: inherit;
+        }
+        .song-choice textarea {
+            display: block;
+            box-sizing: border-box;
+            width: 100%;
+            height: 180px;
+            margin: 8px 0;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            resize: vertical;
+            background: white;
+        }
+        .song-rule-notice { margin: 0; overflow-wrap: anywhere; }
+
         .import-actions {
             display: flex;
             flex-wrap: wrap;
@@ -483,6 +509,7 @@
     <script src="ppt-importer.js"></script>
     <script src="lyric-formatter.js"></script>
     <script src="docx-importer.js"></script>
+    <script src="slide-sections.js"></script>
     <script>
         const inputHistory = [];
         let detectedSongs = [];
@@ -531,6 +558,80 @@
                 button.addEventListener('click', () => importDetectedSong(index));
 
                 card.append(title, meta, preview, button);
+                if (song.contentSlides) {
+                    song.importOptions = { pagesPerSection: 'auto', referenceText: '' };
+                    const ruleLabel = document.createElement('label');
+                    ruleLabel.textContent = '段落規則';
+                    const ruleSelect = document.createElement('select');
+                    ruleSelect.setAttribute('aria-label', `${songOrdinal(index)}段落規則`);
+                    [['auto', '自動（無可靠界線時保留為一段）'], ['1', '每 1 個歌詞頁一段'],
+                        ['2', '每 2 個歌詞頁合成一段'], ['3', '每 3 個歌詞頁合成一段'],
+                        ['4', '每 4 個歌詞頁合成一段']].forEach(([value, text]) => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = text;
+                        ruleSelect.append(option);
+                    });
+                    ruleLabel.append(ruleSelect);
+
+                    const referenceDetails = document.createElement('details');
+                    const referenceSummary = document.createElement('summary');
+                    referenceSummary.textContent = '貼入參考歌詞，比對段落與缺漏（選填）';
+                    const referenceInput = document.createElement('textarea');
+                    referenceInput.setAttribute('aria-label', `${songOrdinal(index)}參考歌詞`);
+                    referenceInput.maxLength = 20000;
+                    referenceInput.placeholder = '請只貼入這一首歌，保留編號，例如：\n1.\n第一段歌詞\n\n2.\n第二段歌詞';
+                    const referenceHelp = document.createElement('p');
+                    referenceHelp.className = 'ppt-import-helper';
+                    referenceHelp.textContent = '優先採用 PPT 的明確標記；沒有標記時用參考歌詞分段。字詞差異會提示，不改原文、不補歌詞。清空後再套用可取消比對。';
+                    const applyReference = document.createElement('button');
+                    applyReference.type = 'button';
+                    applyReference.className = 'btn-outline';
+                    applyReference.textContent = '套用參考歌詞';
+                    referenceDetails.append(referenceSummary, referenceInput, referenceHelp, applyReference);
+
+                    const sectionDetails = document.createElement('details');
+                    sectionDetails.open = true;
+                    const sectionSummary = document.createElement('summary');
+                    sectionSummary.textContent = '段落預覽（確認後再匯入）';
+                    const sectionLabels = document.createElement('p');
+                    sectionLabels.className = 'song-choice-meta song-rule-notice';
+                    const sectionPreview = document.createElement('textarea');
+                    sectionPreview.readOnly = true;
+                    sectionPreview.setAttribute('aria-label', `${songOrdinal(index)}段落預覽`);
+                    sectionDetails.append(sectionSummary, sectionLabels, sectionPreview);
+                    const notice = document.createElement('p');
+                    notice.className = 'ppt-import-helper song-rule-notice';
+                    notice.setAttribute('role', 'status');
+                    const errorNotice = document.createElement('p');
+                    errorNotice.className = 'ppt-status is-error song-rule-notice';
+                    errorNotice.setAttribute('role', 'alert');
+                    errorNotice.hidden = true;
+                    const updatePreview = nextOptions => {
+                        try {
+                            const result = SlideSections.consolidateSlides(song.contentSlides, nextOptions);
+                            song.importOptions = nextOptions;
+                            song.result = result;
+                            sectionPreview.value = result.text;
+                            sectionLabels.textContent = `段落標記：${result.sections.map(item => item.label).join('、')}`;
+                            meta.textContent = `${song.sourceDescription}・${result.sections.length} 個段落`;
+                            notice.textContent = result.warnings.join(' ');
+                            errorNotice.hidden = true;
+                        } catch (error) {
+                            errorNotice.textContent = `${error.message} 目前預覽未變更。`;
+                            errorNotice.hidden = false;
+                            ruleSelect.value = song.importOptions.pagesPerSection;
+                        }
+                    };
+                    ruleSelect.addEventListener('change', () => updatePreview({ ...song.importOptions, pagesPerSection: ruleSelect.value }));
+                    applyReference.addEventListener('click', () => updatePreview({ ...song.importOptions, referenceText: referenceInput.value }));
+                    card.insertBefore(ruleLabel, button);
+                    card.insertBefore(referenceDetails, button);
+                    card.insertBefore(sectionDetails, button);
+                    card.insertBefore(notice, button);
+                    card.insertBefore(errorNotice, button);
+                    updatePreview(song.importOptions);
+                }
                 songChoices.append(card);
             });
             songChoices.hidden = false;
@@ -576,7 +677,7 @@
                         ...song,
                         preview: song.contentSlides.flatMap(slide => slide.lines).slice(0, 2).join('\n'),
                         sourceDescription: `投影片 ${song.startSlide}–${song.endSlide}`,
-                        result: PptxLyricImporter.consolidateSong(song.contentSlides)
+                        result: SlideSections.consolidateSlides(song.contentSlides)
                     }));
                     source = `${slides.length} 張文字投影片`;
                     fileWarnings.textContent = '已排除母片、備註與頁碼欄位。分歌與段落名稱為自動判斷，匯入後請核對；圖片歌詞目前不支援。';
